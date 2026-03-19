@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сервіс недоступний — Eco Analysis</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    background: #f0f4f8;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 20px;
+  }
+  .card {
+    background: white; border-radius: 16px;
+    padding: 48px 40px; text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    max-width: 480px; width: 100%;
+  }
+  .icon { font-size: 64px; margin-bottom: 20px; }
+  h1 { color: #0f4c81; font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+  p  { color: #718096; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+  .btn {
+    display: inline-block; padding: 12px 28px;
+    background: #0f4c81; color: white; border-radius: 10px;
+    text-decoration: none; font-weight: 600; font-size: 14px;
+  }
+  .code { color: #e17055; font-size: 13px; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">⚙️</div>
+    <h1>Сервіс тимчасово недоступний</h1>
+    <p>
+      Один або кілька мікросервісів не відповідають.
+      Спробуйте оновити сторінку або зверніться до адміністратора.
+    </p>
+    <a class="btn" href="/">← На головну</a>
+    <p class="code">HTTP 502 / 503 / 504</p>
+  </div>
+</body>
+</html>
