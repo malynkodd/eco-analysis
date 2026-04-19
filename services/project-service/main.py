@@ -1,27 +1,26 @@
+"""Project service — CRUD for projects and measures.
+
+Authorization model:
+  * analyst — owns the projects they create; can manage their own.
+  * manager — read-only on projects; can approve/reject.
+  * admin   — full access to every project.
+
+The current user is identified by ``user_id`` (FK to ``users.id``)
+extracted from the RS256 JWT.
+"""
+from __future__ import annotations
+
 import os
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 import auth
 import models
 import schemas
-from database import Base, engine, get_db
-
-Base.metadata.create_all(bind=engine)
-
-# Migrate existing tables — add columns added after initial deploy
-with engine.connect() as _conn:
-    _conn.execute(text(
-        "ALTER TABLE projects ADD COLUMN IF NOT EXISTS status VARCHAR NOT NULL DEFAULT 'pending'"
-    ))
-    _conn.execute(text(
-        "ALTER TABLE projects ADD COLUMN IF NOT EXISTS manager_comment TEXT"
-    ))
-    _conn.commit()
+from database import get_db
 
 
 def _is_production() -> bool:
@@ -55,25 +54,36 @@ def health():
     return {"status": "ok", "service": "project-service"}
 
 
-# ─── ПРОЄКТИ ──────────────────────────────────────────
+# ─── helpers ─────────────────────────────────────────────────────────────────
 
-@app.post("/", response_model=schemas.ProjectResponse)
+
+def _require_user_id(current_user: dict) -> int:
+    uid = current_user.get("user_id")
+    if uid is None:
+        raise HTTPException(status_code=401, detail="Token missing user id")
+    return int(uid)
+
+
+def _is_privileged(role: str) -> bool:
+    return role in ("manager", "admin")
+
+
+# ─── PROJECTS ────────────────────────────────────────────────────────────────
+
+
+@app.post("/", response_model=schemas.ProjectResponse, status_code=201)
 def create_project(
     project_data: schemas.ProjectCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(auth.get_current_user)
+    current_user: dict = Depends(auth.get_current_user),
 ):
-    """Створити новий проєкт — тільки аналітик і адмін"""
     if current_user["role"] == "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Менеджер не може створювати проєкти"
-        )
+        raise HTTPException(status_code=403, detail="Managers cannot create projects")
     project = models.Project(
         name=project_data.name,
         description=project_data.description,
-        owner_username=current_user["username"],
-        status="pending",
+        owner_id=_require_user_id(current_user),
+        status=models.ProjectStatus.pending,
     )
     db.add(project)
     db.commit()
@@ -84,32 +94,26 @@ def create_project(
 @app.get("/", response_model=List[schemas.ProjectResponse])
 def get_projects(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(auth.get_current_user)
+    current_user: dict = Depends(auth.get_current_user),
 ):
-    """
-    Отримати проєкти.
-    Менеджер/адмін бачить усі; аналітик — тільки свої.
-    """
-    if current_user["role"] in ("manager", "admin"):
-        return db.query(models.Project).all()
-    return db.query(models.Project).filter(
-        models.Project.owner_username == current_user["username"]
-    ).all()
+    q = db.query(models.Project)
+    if not _is_privileged(current_user["role"]):
+        q = q.filter(models.Project.owner_id == _require_user_id(current_user))
+    return q.order_by(models.Project.id.desc()).all()
 
 
 @app.get("/{project_id}", response_model=schemas.ProjectResponse)
 def get_project(
     project_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(auth.get_current_user)
+    current_user: dict = Depends(auth.get_current_user),
 ):
-    """Отримати один проєкт по ID"""
-    query = db.query(models.Project).filter(models.Project.id == project_id)
-    if current_user["role"] not in ("manager", "admin"):
-        query = query.filter(models.Project.owner_username == current_user["username"])
-    project = query.first()
+    q = db.query(models.Project).filter(models.Project.id == project_id)
+    if not _is_privileged(current_user["role"]):
+        q = q.filter(models.Project.owner_id == _require_user_id(current_user))
+    project = q.first()
     if not project:
-        raise HTTPException(status_code=404, detail="Проєкт не знайдено")
+        raise HTTPException(status_code=404, detail="Project not found")
     return project
 
 
@@ -117,23 +121,19 @@ def get_project(
 def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(auth.get_current_user)
+    current_user: dict = Depends(auth.get_current_user),
 ):
-    """Видалити проєкт (тільки власник або адмін)"""
     if current_user["role"] == "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Менеджер не може видаляти проєкти"
-        )
-    query = db.query(models.Project).filter(models.Project.id == project_id)
+        raise HTTPException(status_code=403, detail="Managers cannot delete projects")
+    q = db.query(models.Project).filter(models.Project.id == project_id)
     if current_user["role"] != "admin":
-        query = query.filter(models.Project.owner_username == current_user["username"])
-    project = query.first()
+        q = q.filter(models.Project.owner_id == _require_user_id(current_user))
+    project = q.first()
     if not project:
-        raise HTTPException(status_code=404, detail="Проєкт не знайдено")
+        raise HTTPException(status_code=404, detail="Project not found")
     db.delete(project)
     db.commit()
-    return {"message": "Проєкт видалено"}
+    return {"message": "Project deleted"}
 
 
 @app.patch("/{project_id}/status", response_model=schemas.ProjectResponse)
@@ -141,21 +141,16 @@ def update_project_status(
     project_id: int,
     status_data: schemas.StatusUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(auth.get_current_user)
+    current_user: dict = Depends(auth.get_current_user),
 ):
-    """
-    Змінити статус проєкту: approved / rejected / pending.
-    Доступно тільки менеджеру та адміністратору.
-    """
-    if current_user["role"] not in ("manager", "admin"):
+    if not _is_privileged(current_user["role"]):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Тільки менеджер або адміністратор може змінювати статус"
+            status_code=403, detail="Only managers or admins can change status"
         )
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
-        raise HTTPException(status_code=404, detail="Проєкт не знайдено")
-    project.status = status_data.status
+        raise HTTPException(status_code=404, detail="Project not found")
+    project.status = models.ProjectStatus(status_data.status)
     if status_data.manager_comment is not None:
         project.manager_comment = status_data.manager_comment
     db.commit()
@@ -167,18 +162,16 @@ def update_project_status(
 def approve_project(
     project_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(auth.get_current_user)
+    current_user: dict = Depends(auth.get_current_user),
 ):
-    """Затвердити проєкт (тільки менеджер/адмін)"""
-    if current_user["role"] not in ("manager", "admin"):
+    if not _is_privileged(current_user["role"]):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Тільки менеджер або адміністратор може затверджувати проєкти"
+            status_code=403, detail="Only managers or admins can approve"
         )
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
-        raise HTTPException(status_code=404, detail="Проєкт не знайдено")
-    project.status = "approved"
+        raise HTTPException(status_code=404, detail="Project not found")
+    project.status = models.ProjectStatus.approved
     project.manager_comment = None
     db.commit()
     db.refresh(project)
@@ -190,49 +183,48 @@ def reject_project(
     project_id: int,
     reject_data: schemas.StatusUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(auth.get_current_user)
+    current_user: dict = Depends(auth.get_current_user),
 ):
-    """Відхилити проєкт з опціональним коментарем (тільки менеджер/адмін)"""
-    if current_user["role"] not in ("manager", "admin"):
+    if not _is_privileged(current_user["role"]):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Тільки менеджер або адміністратор може відхиляти проєкти"
+            status_code=403, detail="Only managers or admins can reject"
         )
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
-        raise HTTPException(status_code=404, detail="Проєкт не знайдено")
-    project.status = "rejected"
+        raise HTTPException(status_code=404, detail="Project not found")
+    project.status = models.ProjectStatus.rejected
     project.manager_comment = reject_data.manager_comment
     db.commit()
     db.refresh(project)
     return project
 
 
-# ─── ЗАХОДИ ───────────────────────────────────────────
+# ─── MEASURES ────────────────────────────────────────────────────────────────
 
-@app.post("/{project_id}/measures", response_model=schemas.MeasureResponse)
+
+@app.post(
+    "/{project_id}/measures",
+    response_model=schemas.MeasureResponse,
+    status_code=201,
+)
 def add_measure(
     project_id: int,
     measure_data: schemas.MeasureCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(auth.get_current_user)
+    current_user: dict = Depends(auth.get_current_user),
 ):
-    """Додати захід до проєкту — тільки власник (аналітик) або адмін"""
     if current_user["role"] == "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Менеджер не може додавати заходи"
-        )
-    query = db.query(models.Project).filter(models.Project.id == project_id)
+        raise HTTPException(status_code=403, detail="Managers cannot add measures")
+    q = db.query(models.Project).filter(models.Project.id == project_id)
     if current_user["role"] != "admin":
-        query = query.filter(models.Project.owner_username == current_user["username"])
-    project = query.first()
+        q = q.filter(models.Project.owner_id == _require_user_id(current_user))
+    project = q.first()
     if not project:
-        raise HTTPException(status_code=404, detail="Проєкт не знайдено")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     measure = models.Measure(
         project_id=project_id,
-        **measure_data.model_dump()
+        **measure_data.model_dump(),
     )
     db.add(measure)
     db.commit()
@@ -245,20 +237,22 @@ def delete_measure(
     project_id: int,
     measure_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(auth.get_current_user)
+    current_user: dict = Depends(auth.get_current_user),
 ):
-    """Видалити захід з проєкту — тільки власник або адмін"""
     if current_user["role"] == "manager":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Менеджер не може видаляти заходи"
+        raise HTTPException(status_code=403, detail="Managers cannot delete measures")
+    q = (
+        db.query(models.Measure)
+        .filter(models.Measure.id == measure_id)
+        .filter(models.Measure.project_id == project_id)
+    )
+    if current_user["role"] != "admin":
+        q = q.join(models.Project).filter(
+            models.Project.owner_id == _require_user_id(current_user)
         )
-    measure = db.query(models.Measure).filter(
-        models.Measure.id == measure_id,
-        models.Measure.project_id == project_id
-    ).first()
+    measure = q.first()
     if not measure:
-        raise HTTPException(status_code=404, detail="Захід не знайдено")
+        raise HTTPException(status_code=404, detail="Measure not found")
     db.delete(measure)
     db.commit()
-    return {"message": "Захід видалено"}
+    return {"message": "Measure deleted"}

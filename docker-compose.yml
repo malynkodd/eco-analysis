@@ -21,8 +21,26 @@ services:
       timeout: 5s
       retries: 10
 
+  migrations:
+    build:
+      context: .
+      dockerfile: db/Dockerfile.migrations
+    container_name: eco_migrations
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eco_network
+    restart: "no"
+
   auth-service:
-    build: ./services/auth-service
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
     container_name: eco_auth
     env_file:
       - .env
@@ -44,11 +62,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - eco_network
 
   project-service:
-    build: ./services/project-service
+    build:
+      context: .
+      dockerfile: services/project-service/Dockerfile
     container_name: eco_project
     env_file:
       - .env
@@ -65,96 +87,140 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - eco_network
 
   financial-service:
-    build: ./services/financial-service
+    build:
+      context: .
+      dockerfile: services/financial-service/Dockerfile
     container_name: eco_financial
     env_file:
       - .env
     environment:
       ENVIRONMENT:          ${ENVIRONMENT}
       WORKERS:              ${WORKERS}
+      DATABASE_URL:         ${DATABASE_URL}
       JWT_PUBLIC_KEY_PATH:  ${JWT_PUBLIC_KEY_PATH}
       JWT_ISSUER:           ${JWT_ISSUER}
       JWT_AUDIENCE:         ${JWT_AUDIENCE}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
     volumes:
       - ./keys/jwt_public.pem:/run/keys/jwt_public.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - eco_network
 
   eco-impact-service:
-    build: ./services/eco-impact-service
+    build:
+      context: .
+      dockerfile: services/eco-impact-service/Dockerfile
     container_name: eco_impact
     env_file:
       - .env
     environment:
       ENVIRONMENT:          ${ENVIRONMENT}
       WORKERS:              ${WORKERS}
+      DATABASE_URL:         ${DATABASE_URL}
       JWT_PUBLIC_KEY_PATH:  ${JWT_PUBLIC_KEY_PATH}
       JWT_ISSUER:           ${JWT_ISSUER}
       JWT_AUDIENCE:         ${JWT_AUDIENCE}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
     volumes:
       - ./keys/jwt_public.pem:/run/keys/jwt_public.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - eco_network
 
   multi-criteria-service:
-    build: ./services/multi-criteria-service
+    build:
+      context: .
+      dockerfile: services/multi-criteria-service/Dockerfile
     container_name: eco_multicriteria
     env_file:
       - .env
     environment:
       ENVIRONMENT:          ${ENVIRONMENT}
       WORKERS:              ${WORKERS}
+      DATABASE_URL:         ${DATABASE_URL}
       JWT_PUBLIC_KEY_PATH:  ${JWT_PUBLIC_KEY_PATH}
       JWT_ISSUER:           ${JWT_ISSUER}
       JWT_AUDIENCE:         ${JWT_AUDIENCE}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
     volumes:
       - ./keys/jwt_public.pem:/run/keys/jwt_public.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - eco_network
 
   scenario-service:
-    build: ./services/scenario-service
+    build:
+      context: .
+      dockerfile: services/scenario-service/Dockerfile
     container_name: eco_scenario
     env_file:
       - .env
     environment:
       ENVIRONMENT:          ${ENVIRONMENT}
       WORKERS:              ${WORKERS}
+      DATABASE_URL:         ${DATABASE_URL}
       JWT_PUBLIC_KEY_PATH:  ${JWT_PUBLIC_KEY_PATH}
       JWT_ISSUER:           ${JWT_ISSUER}
       JWT_AUDIENCE:         ${JWT_AUDIENCE}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
     volumes:
       - ./keys/jwt_public.pem:/run/keys/jwt_public.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - eco_network
 
   comparison-service:
-    build: ./services/comparison-service
+    build:
+      context: .
+      dockerfile: services/comparison-service/Dockerfile
     container_name: eco_comparison
     env_file:
       - .env
     environment:
       ENVIRONMENT:          ${ENVIRONMENT}
       WORKERS:              ${WORKERS}
+      DATABASE_URL:         ${DATABASE_URL}
       JWT_PUBLIC_KEY_PATH:  ${JWT_PUBLIC_KEY_PATH}
       JWT_ISSUER:           ${JWT_ISSUER}
       JWT_AUDIENCE:         ${JWT_AUDIENCE}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
     volumes:
       - ./keys/jwt_public.pem:/run/keys/jwt_public.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - eco_network
 
   report-service:
-    build: ./services/report-service
+    build:
+      context: .
+      dockerfile: services/report-service/Dockerfile
     container_name: eco_report
     env_file:
       - .env
