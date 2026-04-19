@@ -1,6 +1,10 @@
 import axios from 'axios'
 
-// Базовий axios з токеном
+// ─── Client ───────────────────────────────────────────────
+// All backend endpoints live under /api/v1. The server-side envelope
+// `{data, error, meta}` is unwrapped by the response interceptor below,
+// so the rest of the codebase still treats `response.data` as the
+// business payload.
 const api = axios.create({ baseURL: '/', timeout: 30000 })
 
 api.interceptors.request.use(config => {
@@ -9,16 +13,38 @@ api.interceptors.request.use(config => {
   return config
 })
 
-// Перехоплювач відповідей: 401 → очищаємо токен і редіректимо на логін
+// ─── Envelope unwrap + 401 redirect ───────────────────────
+function isEnvelope(body) {
+  return body
+    && typeof body === 'object'
+    && 'data' in body
+    && 'error' in body
+    && 'meta' in body
+}
+
 api.interceptors.response.use(
-  res => res,
+  res => {
+    // Binary downloads (PDF / Excel) must stay untouched.
+    if (res.config.responseType === 'blob') return res
+    if (isEnvelope(res.data)) res.data = res.data.data
+    return res
+  },
   err => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      // Уникаємо нескінченного циклу на сторінці логіну
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login'
+      }
+    }
+    // Normalise envelope error into the legacy `.detail` surface so existing
+    // pages can keep reading `err.response.data.detail`.
+    const body = err.response?.data
+    if (isEnvelope(body) && body.error) {
+      err.response.data = {
+        detail: body.error.message,
+        code: body.error.code,
+        details: body.error.details,
       }
     }
     return Promise.reject(err)
@@ -31,135 +57,127 @@ export const authAPI = {
     const form = new URLSearchParams()
     form.append('username', username)
     form.append('password', password)
-    return api.post('/api/auth/login', form)
+    return api.post('/api/v1/auth/login', form)
   },
-  register: (data) => api.post('/api/auth/register', data),
-  me: () => api.get('/api/auth/me'),
+  // The backend always registers new users as 'analyst'; the client does
+  // not send a role to avoid privilege-escalation attempts.
+  register: ({ email, username, password }) =>
+    api.post('/api/v1/auth/register', { email, username, password }),
+  me: () => api.get('/api/v1/auth/me'),
 }
 
 // ─── Projects ──────────────────────────────────────────
 export const projectAPI = {
-  getAll: () => api.get('/api/projects/'),
-  getOne: (id) => api.get(`/api/projects/${id}`),
-  create: (data) => api.post('/api/projects/', data),
-  delete: (id) => api.delete(`/api/projects/${id}`),
+  getAll: (params = {}) => api.get('/api/v1/projects/', { params }),
+  getOne: (id) => api.get(`/api/v1/projects/${id}`),
+  create: (data) => api.post('/api/v1/projects/', data),
+  delete: (id) => api.delete(`/api/v1/projects/${id}`),
   addMeasure: (projectId, data) =>
-    api.post(`/api/projects/${projectId}/measures`, data),
+    api.post(`/api/v1/projects/${projectId}/measures`, data),
   deleteMeasure: (projectId, measureId) =>
-    api.delete(`/api/projects/${projectId}/measures/${measureId}`),
-  // Затвердження/відхилення проєкту (тільки менеджер/адмін)
+    api.delete(`/api/v1/projects/${projectId}/measures/${measureId}`),
+  // Manager / admin approval workflow.
   updateStatus: (id, newStatus, comment) =>
-    api.patch(`/api/projects/${id}/status`, { status: newStatus, manager_comment: comment || null }),
-  approve: (id) =>
-    api.patch(`/api/projects/${id}/approve`),
+    api.patch(`/api/v1/projects/${id}/status`, {
+      status: newStatus,
+      manager_comment: comment || null,
+    }),
+  approve: (id) => api.patch(`/api/v1/projects/${id}/approve`),
   reject: (id, comment) =>
-    api.patch(`/api/projects/${id}/reject`, { status: 'rejected', manager_comment: comment || null }),
+    api.patch(`/api/v1/projects/${id}/reject`, {
+      status: 'rejected',
+      manager_comment: comment || null,
+    }),
 }
 
 // ─── Admin (user management) ───────────────────────────
 export const adminAPI = {
-  getUsers: () => api.get('/api/auth/users'),
+  getUsers: () => api.get('/api/v1/auth/users'),
   changeRole: (userId, role) =>
-    api.patch(`/api/auth/users/${userId}/role`, { role }),
+    api.patch(`/api/v1/auth/users/${userId}/role`, { role }),
 }
 
 // ─── Financial ─────────────────────────────────────────
 export const financialAPI = {
-  analyze: (data) => api.post('/api/financial/analyze', data),
+  analyze: (data) => api.post('/api/v1/financial/analyze', data),
   analyzePortfolio: (data) =>
-    api.post('/api/financial/analyze/portfolio', data),
+    api.post('/api/v1/financial/analyze/portfolio', data),
 }
 
 // ─── Eco Impact ────────────────────────────────────────
 export const ecoAPI = {
-  analyze: (data) => api.post('/api/eco/analyze', data),
+  analyze: (data) => api.post('/api/v1/eco/analyze', data),
   analyzePortfolio: (data) =>
-    api.post('/api/eco/analyze/portfolio', data),
+    api.post('/api/v1/eco/analyze/portfolio', data),
 }
 
 // ─── Multi-Criteria ────────────────────────────────────
 export const multiCriteriaAPI = {
-  ahp: (data) => api.post('/api/multicriteria/ahp', data),
-  topsis: (data) => api.post('/api/multicriteria/topsis', data),
-  combined: (data) => api.post('/api/multicriteria/combined', data),
+  ahp: (data) => api.post('/api/v1/multicriteria/ahp', data),
+  topsis: (data) => api.post('/api/v1/multicriteria/topsis', data),
+  combined: (data) => api.post('/api/v1/multicriteria/combined', data),
 }
 
 // ─── Scenario ──────────────────────────────────────────
 export const scenarioAPI = {
-  whatif: (data) => api.post('/api/scenario/whatif', data),
-  sensitivity: (data) => api.post('/api/scenario/sensitivity', data),
-  breakeven: (data) => api.post('/api/scenario/breakeven', data),
+  whatif: (data) => api.post('/api/v1/scenario/whatif', data),
+  sensitivity: (data) => api.post('/api/v1/scenario/sensitivity', data),
+  breakeven: (data) => api.post('/api/v1/scenario/breakeven', data),
 }
 
 // ─── Comparison ────────────────────────────────────────
+// Stateless body-driven comparison: the page has already run financial +
+// eco analyses client-side and passes the fused measure rows directly.
 export const comparisonAPI = {
-  compare: (data) => api.post('/api/comparison/compare', data),
+  compare: (data) => api.post('/api/v1/comparison/compare', data),
 }
 
 // ─── Reports ───────────────────────────────────────────
-export const reportAPI = {
-  // PDF звіт
-  generate: async (data) => {
-    const response = await api.post('/api/reports/generate', data, {
-      responseType: 'blob'
-    })
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', 'eco_report.pdf')
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  },
-
-  // Excel звіт
-  generateExcel: async (data) => {
-    const response = await api.post('/api/reports/generate/excel', data, {
-      responseType: 'blob'
-    })
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', 'eco_report.xlsx')
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  },
+// Body-driven PDF / Excel generation: the page assembles the ReportInput
+// from the in-memory analysis results and streams back a binary blob.
+async function downloadBinary(url, body, filename) {
+  const response = await api.post(url, body, { responseType: 'blob' })
+  const href = window.URL.createObjectURL(new Blob([response.data]))
+  const link = document.createElement('a')
+  link.href = href
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(href)
 }
 
-// ─── Excel/CSV Export ──────────────────────────────────
-/**
- * Генерує та завантажує CSV-файл з результатами аналізу.
- * Файл сумісний з Microsoft Excel (кодування UTF-8 BOM, роздільник ";").
- *
- * @param {object} results  — об'єкт із полями: financial[], eco, comparison
- * @param {string} projectName — назва проєкту (використовується у назві файлу)
- */
+export const reportAPI = {
+  generate: (data) =>
+    downloadBinary('/api/v1/reports/generate', data, 'eco_report.pdf'),
+  generateExcel: (data) =>
+    downloadBinary('/api/v1/reports/generate/excel', data, 'eco_report.xlsx'),
+}
+
+// ─── CSV client-side export ─────────────────────────────
+// Generates a UTF-8 BOM CSV so Excel renders Cyrillic correctly.
 export function exportToCSV(results, projectName) {
   const rows = []
 
-  // ── Секція 1: Фінансовий аналіз ──────────────────────
   rows.push(['ФІНАНСОВИЙ АНАЛІЗ'])
   rows.push([
     'Захід', 'NPV (грн)', 'IRR (%)', 'BCR',
     'Окупність (рр.)', 'Диск. окупність (рр.)', 'LCCA (грн)',
   ])
   for (const f of results.financial) {
+    const irr = f.irr && typeof f.irr === 'object' ? f.irr.value : f.irr
     rows.push([
       f.name,
       f.npv,
-      f.irr >= 0 ? f.irr : 'N/A',
-      f.bcr,
-      f.simple_payback > 0 ? f.simple_payback : 'N/A',
-      f.discounted_payback > 0 ? f.discounted_payback : 'N/A',
+      irr != null && irr >= 0 ? irr : 'N/A',
+      f.bcr != null ? f.bcr : 'N/A',
+      f.simple_payback != null && f.simple_payback > 0 ? f.simple_payback : 'N/A',
+      f.discounted_payback != null && f.discounted_payback > 0 ? f.discounted_payback : 'N/A',
       f.lcca,
     ])
   }
   rows.push([])
 
-  // ── Секція 2: Екологічний ефект ───────────────────────
   rows.push(['ЕКОЛОГІЧНИЙ ЕФЕКТ'])
   rows.push([
     'Захід', 'Зменшення CO₂ (т/рік)',
@@ -181,7 +199,6 @@ export function exportToCSV(results, projectName) {
   ])
   rows.push([])
 
-  // ── Секція 3: Зведений рейтинг ────────────────────────
   rows.push(['ЗВЕДЕНИЙ РЕЙТИНГ'])
   rows.push([
     'Захід', 'Ранг NPV', 'Ранг IRR', 'Ранг BCR',
@@ -202,18 +219,15 @@ export function exportToCSV(results, projectName) {
   }
   rows.push([])
 
-  // ── Секція 4: Pareto-аналіз ───────────────────────────
   rows.push(['PARETO-АНАЛІЗ'])
   rows.push(['Захід', 'NPV (грн)', 'CO₂ (т/рік)', 'Pareto-оптимальний'])
   for (const p of results.comparison.pareto_front) {
     rows.push([p.name, p.npv, p.co2_reduction, p.is_pareto_optimal ? 'Так' : 'Ні'])
   }
 
-  // UTF-8 BOM забезпечує правильне відображення кирилиці в Excel
   const csv = '\uFEFF' + rows.map(r =>
     r.map(cell => {
       const s = String(cell ?? '')
-      // Якщо клітинка містить роздільник або лапки — обгортаємо в лапки
       return s.includes(';') || s.includes('"') || s.includes('\n')
         ? `"${s.replace(/"/g, '""')}"` : s
     }).join(';')
