@@ -7,7 +7,8 @@ import {
 } from 'recharts'
 import {
   projectAPI, financialAPI, ecoAPI,
-  comparisonAPI, reportAPI, scenarioAPI
+  comparisonAPI, reportAPI, scenarioAPI,
+  multiCriteriaAPI
 } from '../api'
 import { useAuth } from '../context/AuthContext'
 import TornadoMini from '../components/TornadoMini'
@@ -68,6 +69,57 @@ export default function AnalysisPage() {
         })),
       })
 
+      // ─── Multi-criteria: AHP + TOPSIS over (NPV, IRR, CO2, Payback) ────
+      // Default Saaty matrix reflects the TS priority order; criteria are
+      // intentionally equal-weighted on the is_benefit side except payback
+      // (cost) which TOPSIS flips internally.
+      const criteria = ['npv', 'irr', 'co2', 'payback']
+      const isBenefit = [true, true, true, false]
+      const comparisonMatrix = [
+        [1,   2,   2,   3  ],
+        [1/2, 1,   1,   2  ],
+        [1/2, 1,   1,   2  ],
+        [1/3, 1/2, 1/2, 1  ],
+      ]
+      const alternatives = financialRes.data.results.map((f, i) => ({
+        name: f.name,
+        npv: f.npv,
+        irr: f.irr?.value ?? 0,
+        co2: ecoRes.data.results[i]?.co2_reduction_tons_per_year || 0,
+        payback: f.simple_payback != null && f.simple_payback > 0 ? f.simple_payback : 999,
+      }))
+
+      let ahpData = null
+      let topsisData = null
+      try {
+        const ahpRes = await multiCriteriaAPI.ahp({
+          criteria,
+          comparison_matrix: comparisonMatrix,
+          alternatives,
+          is_benefit: isBenefit,
+        })
+        ahpData = ahpRes.data
+
+        const topsisRes = await multiCriteriaAPI.topsis({
+          criteria,
+          weights: ahpData.weights,
+          is_benefit: isBenefit,
+          alternatives,
+        })
+        topsisData = topsisRes.data
+      } catch {
+        // Degrade gracefully: comparison still works without AHP/TOPSIS.
+      }
+
+      const ahpScoreByName = ahpData
+        ? Object.fromEntries(ahpData.ranking.map(r => [r.name, r.score]))
+        : {}
+      const topsisScoreByName = topsisData
+        ? Object.fromEntries(
+            topsisData.ranking.map(r => [r.name, r.closeness_coefficient])
+          )
+        : {}
+
       const comparisonData = financialRes.data.results.map((f, i) => ({
         name: f.name,
         npv: f.npv,
@@ -77,6 +129,8 @@ export default function AnalysisPage() {
         bcr: f.bcr ?? null,
         simple_payback: f.simple_payback ?? null,
         co2_reduction: ecoRes.data.results[i]?.co2_reduction_tons_per_year || 0,
+        ahp_score: ahpScoreByName[f.name] ?? null,
+        topsis_score: topsisScoreByName[f.name] ?? null,
       }))
 
       const compRes = await comparisonAPI.compare({ measures: comparisonData })
@@ -85,6 +139,8 @@ export default function AnalysisPage() {
         financial: financialRes.data.results,
         eco: ecoRes.data,
         comparison: compRes.data,
+        ahp: ahpData,
+        topsis: topsisData,
       })
       setActiveTab('financial')
     } catch (err) {
@@ -112,9 +168,32 @@ export default function AnalysisPage() {
       })
       sensitivityData = sensRes.data.results.map(r => ({
         parameter: r.parameter,
+        impact_absolute: r.impact_absolute ?? 0,
         impact_percent: r.impact_percent,
       }))
-    } catch {}
+    } catch {
+      // Sensitivity is optional for the report — skip on failure.
+    }
+
+    const ahpReportData = results.ahp && {
+      criteria: results.ahp.criteria,
+      weights: results.ahp.weights,
+      consistency_ratio: results.ahp.consistency_ratio,
+      ranking: results.ahp.ranking.map(r => ({
+        name: r.name,
+        score: r.score,
+        rank: r.rank,
+      })),
+    }
+
+    const topsisReportData = results.topsis && {
+      criteria: results.topsis.criteria,
+      ranking: results.topsis.ranking.map(r => ({
+        name: r.name,
+        closeness_coefficient: r.closeness_coefficient,
+        rank: r.rank,
+      })),
+    }
 
     return {
       project_name: project.name,
@@ -152,6 +231,8 @@ export default function AnalysisPage() {
         `${results.comparison.best_consensus} is recommended. ` +
         `Financial leader: ${results.comparison.best_financial}. ` +
         `Ecological leader: ${results.comparison.best_ecological}.`,
+      ahp_data: ahpReportData || null,
+      topsis_data: topsisReportData || null,
       sensitivity_data: sensitivityData,
     }
   }
