@@ -1,19 +1,19 @@
 import io
-from openpyxl import Workbook
-from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
-from openpyxl.chart import BarChart, Reference
-from openpyxl.chart.series import DataPoint
 from datetime import datetime
+
+from openpyxl import Workbook
+from openpyxl.chart import BarChart, Reference
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from schemas import ReportInput
 
 PRIMARY_HEX = "0F4C81"
-GREEN_HEX   = "00B894"
-ACCENT_HEX  = "6C5CE7"
-LIGHT_BLUE  = "DBEAFE"
+GREEN_HEX = "00B894"
+ACCENT_HEX = "6C5CE7"
+LIGHT_BLUE = "DBEAFE"
 LIGHT_GREEN = "D1FAE5"
-LIGHT_GRAY  = "F3F4F6"
-WHITE       = "FFFFFF"
+LIGHT_GRAY = "F3F4F6"
+WHITE = "FFFFFF"
 
 
 def thin_border():
@@ -30,10 +30,7 @@ def style_header(cell, bg=PRIMARY_HEX):
 
 def style_cell(cell, bold=False, center=False, bg=None, color=None):
     cell.font = Font(bold=bold, size=10, color=color or "1E293B")
-    cell.alignment = Alignment(
-        horizontal="center" if center else "left",
-        vertical="center"
-    )
+    cell.alignment = Alignment(horizontal="center" if center else "left", vertical="center")
     cell.border = thin_border()
     if bg:
         cell.fill = PatternFill("solid", fgColor=bg)
@@ -56,10 +53,7 @@ def add_section_title(ws, row, title, color=PRIMARY_HEX, cols=7):
     cell = ws.cell(row=row, column=1, value=title)
     cell.font = Font(bold=True, size=12, color=color)
     cell.fill = PatternFill("solid", fgColor="F8FAFC")
-    ws.merge_cells(
-        start_row=row, start_column=1,
-        end_row=row, end_column=cols
-    )
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=cols)
     return row + 1
 
 
@@ -91,12 +85,12 @@ def generate_excel(data: ReportInput) -> bytes:
 
     # Інфо
     info = [
-        ("Project:",           data.project_name),
-        ("Description:",       data.project_description or "—"),
-        ("Analyst:",           data.analyst_name),
-        ("Generated:",         datetime.now().strftime("%d.%m.%Y %H:%M")),
+        ("Project:", data.project_name),
+        ("Description:", data.project_description or "—"),
+        ("Analyst:", data.analyst_name),
+        ("Generated:", datetime.now().strftime("%d.%m.%Y %H:%M")),
         ("Measures analyzed:", str(len(data.financial_results))),
-        ("Recommended:",       data.best_measure),
+        ("Recommended:", data.best_measure),
     ]
     for label, value in info:
         row = ws1.max_row + 1
@@ -117,7 +111,7 @@ def generate_excel(data: ReportInput) -> bytes:
     for cell in ws1[ws1.max_row]:
         style_header(cell, PRIMARY_HEX)
 
-    for i, r in enumerate(sorted(data.ranking, key=lambda x: x.consensus_rank)):
+    for r in sorted(data.ranking, key=lambda x: x.consensus_rank):
         row_data = [
             r.name,
             f"#{r.rank_npv}",
@@ -127,7 +121,11 @@ def generate_excel(data: ReportInput) -> bytes:
             f"#{r.consensus_rank}",
         ]
         ws1.append(row_data)
-        bg = LIGHT_GREEN if r.consensus_rank == 1 else (LIGHT_BLUE if r.consensus_rank == 2 else None)
+        bg = (
+            LIGHT_GREEN
+            if r.consensus_rank == 1
+            else (LIGHT_BLUE if r.consensus_rank == 2 else None)
+        )
         for cell in ws1[ws1.max_row]:
             style_cell(cell, bold=(r.consensus_rank == 1), center=True, bg=bg)
         ws1[ws1.max_row][0].alignment = Alignment(horizontal="left", vertical="center")
@@ -142,8 +140,15 @@ def generate_excel(data: ReportInput) -> bytes:
 
     add_section_title(ws2, 1, "💰 Financial Analysis — Key Indicators", PRIMARY_HEX)
 
-    fin_headers = ["Measure", "NPV (UAH)", "IRR (%)", "BCR",
-                   "Payback (yrs)", "Disc. Payback", "LCCA (UAH)"]
+    fin_headers = [
+        "Measure",
+        "NPV (UAH)",
+        "IRR (%)",
+        "BCR",
+        "Payback (yrs)",
+        "Disc. Payback",
+        "LCCA (UAH)",
+    ]
     ws2.append(fin_headers)
     for cell in ws2[ws2.max_row]:
         style_header(cell, PRIMARY_HEX)
@@ -165,24 +170,29 @@ def generate_excel(data: ReportInput) -> bytes:
 
         # NPV колір
         npv_cell = ws2.cell(row=ws2.max_row, column=2)
-        npv_cell.number_format = '#,##0'
+        npv_cell.number_format = "#,##0"
         if f.npv > 0:
             npv_cell.font = Font(bold=True, color="065F46", size=10)
         else:
             npv_cell.font = Font(bold=True, color="991B1B", size=10)
 
         # LCCA формат
-        ws2.cell(row=ws2.max_row, column=7).number_format = '#,##0'
+        ws2.cell(row=ws2.max_row, column=7).number_format = "#,##0"
 
     ws2.append([])
 
     # Деталізація по роках
     if any(f.yearly_details for f in data.financial_results):
-        add_section_title(ws2, ws2.max_row + 1,
-                          "📈 Yearly Cash Flow Details", PRIMARY_HEX)
+        add_section_title(ws2, ws2.max_row + 1, "📈 Yearly Cash Flow Details", PRIMARY_HEX)
 
-        yearly_headers = ["Measure", "Year", "Cash Flow (UAH)",
-                          "Discounted CF", "Cumulative CF", "Cumulative Disc."]
+        yearly_headers = [
+            "Measure",
+            "Year",
+            "Cash Flow (UAH)",
+            "Discounted CF",
+            "Cumulative CF",
+            "Cumulative Disc.",
+        ]
         ws2.append(yearly_headers)
         for cell in ws2[ws2.max_row]:
             style_header(cell, ACCENT_HEX)
@@ -191,18 +201,20 @@ def generate_excel(data: ReportInput) -> bytes:
             if not f.yearly_details:
                 continue
             for d in f.yearly_details:
-                ws2.append([
-                    f.name,
-                    d.get("year"),
-                    d.get("cash_flow"),
-                    d.get("discounted_cash_flow"),
-                    d.get("cumulative_cash_flow"),
-                    d.get("cumulative_discounted"),
-                ])
+                ws2.append(
+                    [
+                        f.name,
+                        d.get("year"),
+                        d.get("cash_flow"),
+                        d.get("discounted_cash_flow"),
+                        d.get("cumulative_cash_flow"),
+                        d.get("cumulative_discounted"),
+                    ]
+                )
                 for cell in ws2[ws2.max_row]:
                     style_cell(cell, center=(cell.column > 1))
                     if cell.column > 1:
-                        cell.number_format = '#,##0'
+                        cell.number_format = "#,##0"
 
     # Bar Chart NPV
     chart_start_row = 3
@@ -218,10 +230,12 @@ def generate_excel(data: ReportInput) -> bytes:
     values_col = 2
     data_rows = len(data.financial_results)
 
-    data_ref = Reference(ws2, min_col=values_col, min_row=chart_start_row,
-                         max_row=chart_start_row + data_rows)
-    cats_ref = Reference(ws2, min_col=names_col, min_row=chart_start_row + 1,
-                         max_row=chart_start_row + data_rows)
+    data_ref = Reference(
+        ws2, min_col=values_col, min_row=chart_start_row, max_row=chart_start_row + data_rows
+    )
+    cats_ref = Reference(
+        ws2, min_col=names_col, min_row=chart_start_row + 1, max_row=chart_start_row + data_rows
+    )
     chart.add_data(data_ref, titles_from_data=True)
     chart.set_categories(cats_ref)
 
@@ -238,23 +252,24 @@ def generate_excel(data: ReportInput) -> bytes:
 
     add_section_title(ws3, 1, "🌿 Environmental Impact Assessment", GREEN_HEX)
 
-    eco_headers = ["Measure", "CO2 Reduction (t/yr)",
-                   "Averted Damage (UAH)", "CO2 Value (USD)"]
+    eco_headers = ["Measure", "CO2 Reduction (t/yr)", "Averted Damage (UAH)", "CO2 Value (USD)"]
     ws3.append(eco_headers)
     for cell in ws3[ws3.max_row]:
         style_header(cell, GREEN_HEX)
 
     for e in data.eco_results:
-        ws3.append([
-            e.name,
-            e.co2_reduction_tons_per_year,
-            e.averted_damage_uah,
-            e.total_co2_value_usd,
-        ])
+        ws3.append(
+            [
+                e.name,
+                e.co2_reduction_tons_per_year,
+                e.averted_damage_uah,
+                e.total_co2_value_usd,
+            ]
+        )
         for cell in ws3[ws3.max_row]:
             style_cell(cell, center=(cell.column > 1))
         ws3[ws3.max_row][1].font = Font(bold=True, color="065F46", size=10)
-        ws3[ws3.max_row][2].number_format = '#,##0'
+        ws3[ws3.max_row][2].number_format = "#,##0"
 
     # Підсумок
     total_co2 = sum(e.co2_reduction_tons_per_year for e in data.eco_results)
@@ -275,11 +290,11 @@ def generate_excel(data: ReportInput) -> bytes:
         add_section_title(ws4, 1, "🌪️ Sensitivity Analysis (Tornado)", PRIMARY_HEX)
 
         PARAM_LABELS = {
-            "expected_savings":   "Expected Savings",
+            "expected_savings": "Expected Savings",
             "initial_investment": "Initial Investment",
-            "discount_rate":      "Discount Rate",
-            "operational_cost":   "Operational Cost",
-            "lifetime_years":     "Lifetime (years)",
+            "discount_rate": "Discount Rate",
+            "operational_cost": "Operational Cost",
+            "lifetime_years": "Lifetime (years)",
         }
 
         sens_headers = ["#", "Parameter", "Impact on NPV (UAH)", "Relative Impact (%)"]
@@ -290,16 +305,18 @@ def generate_excel(data: ReportInput) -> bytes:
         max_impact = max(r.impact_absolute for r in data.sensitivity_data) or 1
         for i, r in enumerate(data.sensitivity_data):
             rel = round(r.impact_absolute / max_impact * 100, 1)
-            ws4.append([
-                i + 1,
-                PARAM_LABELS.get(r.parameter, r.parameter),
-                round(r.impact_absolute),
-                f"{rel}%",
-            ])
+            ws4.append(
+                [
+                    i + 1,
+                    PARAM_LABELS.get(r.parameter, r.parameter),
+                    round(r.impact_absolute),
+                    f"{rel}%",
+                ]
+            )
             bg = LIGHT_BLUE if i == 0 else None
             for cell in ws4[ws4.max_row]:
                 style_cell(cell, bold=(i == 0), center=(cell.column != 2), bg=bg)
-            ws4[ws4.max_row][2].number_format = '#,##0'
+            ws4[ws4.max_row][2].number_format = "#,##0"
 
         # Tornado bar chart
         tornado = BarChart()
@@ -332,13 +349,14 @@ def generate_excel(data: ReportInput) -> bytes:
 
             # CR статус
             cr = data.ahp_data.consistency_ratio
-            cr_cell = ws5.cell(row=row, column=1,
-                               value=f"Consistency Ratio (CR) = {cr:.4f} — "
-                                     f"{'Consistent ✓' if cr < 0.1 else 'NOT Consistent ✗'}")
-            cr_cell.font = Font(bold=True, size=10,
-                                color="065F46" if cr < 0.1 else "991B1B")
-            cr_cell.fill = PatternFill("solid",
-                                       fgColor=LIGHT_GREEN if cr < 0.1 else "FEE2E2")
+            cr_cell = ws5.cell(
+                row=row,
+                column=1,
+                value=f"Consistency Ratio (CR) = {cr:.4f} — "
+                f"{'Consistent ✓' if cr < 0.1 else 'NOT Consistent ✗'}",
+            )
+            cr_cell.font = Font(bold=True, size=10, color="065F46" if cr < 0.1 else "991B1B")
+            cr_cell.fill = PatternFill("solid", fgColor=LIGHT_GREEN if cr < 0.1 else "FEE2E2")
             ws5.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
             row += 1
 
@@ -349,7 +367,7 @@ def generate_excel(data: ReportInput) -> bytes:
 
             max_w = max(data.ahp_data.weights)
             for c, w in zip(data.ahp_data.criteria, data.ahp_data.weights):
-                ws5.append([c, round(w, 4), f"{w*100:.1f}%"])
+                ws5.append([c, round(w, 4), f"{w * 100:.1f}%"])
                 bg = LIGHT_BLUE if w == max_w else None
                 for cell in ws5[ws5.max_row]:
                     style_cell(cell, bold=(w == max_w), bg=bg)
@@ -372,19 +390,28 @@ def generate_excel(data: ReportInput) -> bytes:
 
         if data.topsis_data:
             add_section_title(ws5, ws5.max_row + 1, "📐 TOPSIS Ranking", ACCENT_HEX)
-            ws5.append(["Rank", "Alternative", "Closeness Coeff.",
-                        "Distance to Ideal", "Distance to Anti-Ideal"])
+            ws5.append(
+                [
+                    "Rank",
+                    "Alternative",
+                    "Closeness Coeff.",
+                    "Distance to Ideal",
+                    "Distance to Anti-Ideal",
+                ]
+            )
             for cell in ws5[ws5.max_row]:
                 style_header(cell, ACCENT_HEX)
 
             for r_item in data.topsis_data.ranking:
-                ws5.append([
-                    f"#{r_item['rank']}",
-                    r_item["name"],
-                    round(r_item["closeness_coefficient"], 4),
-                    round(r_item["distance_to_ideal"], 4),
-                    round(r_item["distance_to_anti_ideal"], 4),
-                ])
+                ws5.append(
+                    [
+                        f"#{r_item['rank']}",
+                        r_item["name"],
+                        round(r_item["closeness_coefficient"], 4),
+                        round(r_item["distance_to_ideal"], 4),
+                        round(r_item["distance_to_anti_ideal"], 4),
+                    ]
+                )
                 bg = LIGHT_GREEN if r_item["rank"] == 1 else None
                 for cell in ws5[ws5.max_row]:
                     style_cell(cell, bold=(r_item["rank"] == 1), center=True, bg=bg)

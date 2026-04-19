@@ -10,6 +10,7 @@ This package owns the authoritative implementation of:
 
 Every service imports from here instead of redefining helpers.
 """
+
 from eco_common.api_setup import RequestIDMiddleware, create_app
 from eco_common.auth import (
     JWT_ALGORITHM,

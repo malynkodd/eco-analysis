@@ -8,19 +8,19 @@ Numerical conventions:
     ``None`` and ``converged`` is ``False`` instead of returning a magic
     sentinel like ``-1.0``.
 """
+
 from __future__ import annotations
 
 import logging
 from typing import List, Optional
 
-from scipy.optimize import brentq
-
 from schemas import FinancialInput, FinancialResult, IRRResult, YearlyDetail
+from scipy.optimize import brentq
 
 logger = logging.getLogger(__name__)
 
 _IRR_LOWER = -0.999  # > -100 %
-_IRR_UPPER = 10.0    # +1000 %
+_IRR_UPPER = 10.0  # +1000 %
 _IRR_TOL = 1e-7
 _IRR_MAXITER = 200
 
@@ -40,7 +40,7 @@ def _npv(cash_flows: List[float], rate: float) -> float:
     factor = 1.0 + rate
     total = 0.0
     for t, cf in enumerate(cash_flows):
-        total += cf / (factor ** t)
+        total += cf / (factor**t)
     return total
 
 
@@ -69,14 +69,21 @@ def calculate_irr(cash_flows: List[float]) -> IRRResult:
     if f_low * f_high > 0:
         logger.debug(
             "IRR not bracketed in [%.3f, %.1f]: f(low)=%.4f, f(high)=%.4f",
-            _IRR_LOWER, _IRR_UPPER, f_low, f_high,
+            _IRR_LOWER,
+            _IRR_UPPER,
+            f_low,
+            f_high,
         )
         return IRRResult(value=None, converged=False, iterations=0)
 
     try:
         root, result = brentq(
-            f, _IRR_LOWER, _IRR_UPPER,
-            xtol=_IRR_TOL, maxiter=_IRR_MAXITER, full_output=True,
+            f,
+            _IRR_LOWER,
+            _IRR_UPPER,
+            xtol=_IRR_TOL,
+            maxiter=_IRR_MAXITER,
+            full_output=True,
         )
     except (RuntimeError, ValueError) as exc:
         logger.warning("IRR brentq failed: %s", exc)
@@ -99,8 +106,8 @@ def calculate_bcr(
     if discount_rate <= -1.0 or lifetime_years < 1:
         return None
     factor = 1.0 + discount_rate
-    pv_savings = sum(expected_savings / (factor ** t) for t in range(1, lifetime_years + 1))
-    pv_opex = sum(operational_cost / (factor ** t) for t in range(1, lifetime_years + 1))
+    pv_savings = sum(expected_savings / (factor**t) for t in range(1, lifetime_years + 1))
+    pv_opex = sum(operational_cost / (factor**t) for t in range(1, lifetime_years + 1))
     total_cost = initial_investment + pv_opex
     if total_cost <= 0:
         return None
@@ -117,16 +124,14 @@ def calculate_simple_payback(
     return round(initial_investment / annual_net_cash_flow, 4)
 
 
-def calculate_discounted_payback(
-    cash_flows: List[float], discount_rate: float
-) -> Optional[float]:
+def calculate_discounted_payback(cash_flows: List[float], discount_rate: float) -> Optional[float]:
     if discount_rate <= -1.0 or len(cash_flows) < 2:
         return None
     factor = 1.0 + discount_rate
     cumulative = 0.0
     prev = 0.0
     for t, cf in enumerate(cash_flows):
-        cumulative += cf / (factor ** t)
+        cumulative += cf / (factor**t)
         if t > 0 and cumulative >= 0:
             denom = cumulative - prev
             if denom == 0:
@@ -146,7 +151,7 @@ def calculate_lcca(
     if discount_rate <= -1.0:
         raise ValueError("Discount rate <= -1 produces division by zero")
     factor = 1.0 + discount_rate
-    pv_opex = sum(operational_cost / (factor ** t) for t in range(1, lifetime_years + 1))
+    pv_opex = sum(operational_cost / (factor**t) for t in range(1, lifetime_years + 1))
     return round(initial_investment + pv_opex, 2)
 
 
@@ -161,16 +166,18 @@ def build_yearly_details(
     cumulative = -initial_investment
     cumulative_disc = -initial_investment
     for year in range(1, lifetime_years + 1):
-        discounted = annual_cf / (factor ** year)
+        discounted = annual_cf / (factor**year)
         cumulative += annual_cf
         cumulative_disc += discounted
-        details.append(YearlyDetail(
-            year=year,
-            cash_flow=round(annual_cf, 2),
-            discounted_cash_flow=round(discounted, 2),
-            cumulative_cash_flow=round(cumulative, 2),
-            cumulative_discounted=round(cumulative_disc, 2),
-        ))
+        details.append(
+            YearlyDetail(
+                year=year,
+                cash_flow=round(annual_cf, 2),
+                discounted_cash_flow=round(discounted, 2),
+                cumulative_cash_flow=round(cumulative, 2),
+                cumulative_discounted=round(cumulative_disc, 2),
+            )
+        )
     return details
 
 
@@ -205,7 +212,8 @@ def analyze_measure(data: FinancialInput) -> FinancialResult:
 
     logger.info(
         "Financial analysis '%s': NPV=%.2f, IRR=%s, BCR=%s, payback=%s yr",
-        data.name, npv,
+        data.name,
+        npv,
         f"{irr.value:.2f}%" if irr.value is not None else "N/A",
         f"{bcr:.4f}" if bcr is not None else "N/A",
         f"{simple_pb:.2f}" if simple_pb is not None else "N/A",

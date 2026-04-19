@@ -7,14 +7,13 @@ brackets the root. Sensitivity reports both an absolute NPV swing
 (``impact_absolute``, currency units) and a relative swing
 (``impact_percent``, percent of |base NPV|).
 """
+
 from __future__ import annotations
 
 import logging
 from typing import List, Optional
 
 import numpy as np
-from scipy.optimize import brentq
-
 from schemas import (
     BaseScenario,
     BreakEvenInput,
@@ -26,6 +25,7 @@ from schemas import (
     WhatIfInput,
     WhatIfResult,
 )
+from scipy.optimize import brentq
 
 logger = logging.getLogger(__name__)
 
@@ -52,17 +52,18 @@ def calc_npv(
         raise ValueError("lifetime_years must be >= 1")
     annual_cf = expected_savings - operational_cost
     factor = 1.0 + discount_rate
-    npv = -initial_investment + sum(
-        annual_cf / (factor ** t) for t in range(1, lifetime_years + 1)
-    )
+    npv = -initial_investment + sum(annual_cf / (factor**t) for t in range(1, lifetime_years + 1))
     return round(npv, 2)
 
 
 def run_whatif(data: WhatIfInput) -> List[WhatIfResult]:
     b = data.base
     base_npv = calc_npv(
-        b.initial_investment, b.operational_cost,
-        b.expected_savings, b.lifetime_years, b.discount_rate,
+        b.initial_investment,
+        b.operational_cost,
+        b.expected_savings,
+        b.lifetime_years,
+        b.discount_rate,
     )
 
     results: List[WhatIfResult] = []
@@ -82,24 +83,29 @@ def run_whatif(data: WhatIfInput) -> List[WhatIfResult]:
         npv_change = new_npv - base_npv
         npv_change_pct = (npv_change / abs(base_npv) * 100) if base_npv != 0 else 0.0
 
-        results.append(WhatIfResult(
-            name=b.name,
-            parameter_changed=change.parameter,
-            original_value=float(original_value),
-            new_value=float(change.new_value),
-            original_npv=base_npv,
-            new_npv=new_npv,
-            npv_change=round(npv_change, 2),
-            npv_change_percent=round(npv_change_pct, 2),
-        ))
+        results.append(
+            WhatIfResult(
+                name=b.name,
+                parameter_changed=change.parameter,
+                original_value=float(original_value),
+                new_value=float(change.new_value),
+                original_npv=base_npv,
+                new_npv=new_npv,
+                npv_change=round(npv_change, 2),
+                npv_change_percent=round(npv_change_pct, 2),
+            )
+        )
     return results
 
 
 def run_sensitivity(data: SensitivityInput) -> SensitivityAnalysisResult:
     b = data.base
     base_npv = calc_npv(
-        b.initial_investment, b.operational_cost,
-        b.expected_savings, b.lifetime_years, b.discount_rate,
+        b.initial_investment,
+        b.operational_cost,
+        b.expected_savings,
+        b.lifetime_years,
+        b.discount_rate,
     )
 
     parameters = {
@@ -147,27 +153,32 @@ def run_sensitivity(data: SensitivityInput) -> SensitivityAnalysisResult:
 
             npv = calc_npv(**params)
             npv_values.append(npv)
-            points.append(SensitivityPoint(
-                variation_percent=round(var * 100, 2),
-                value=round(float(new_value), 4),
-                npv=npv,
-            ))
+            points.append(
+                SensitivityPoint(
+                    variation_percent=round(var * 100, 2),
+                    value=round(float(new_value), 4),
+                    npv=npv,
+                )
+            )
 
         impact_abs = max(npv_values) - min(npv_values)
         impact_pct = (impact_abs / abs(base_npv) * 100) if base_npv != 0 else 0.0
-        sensitivity_results.append(SensitivityResult(
-            parameter=param_name,
-            base_value=float(base_value),
-            base_npv=base_npv,
-            impact_absolute=round(impact_abs, 2),
-            impact_percent=round(impact_pct, 2),
-            points=points,
-        ))
+        sensitivity_results.append(
+            SensitivityResult(
+                parameter=param_name,
+                base_value=float(base_value),
+                base_npv=base_npv,
+                impact_absolute=round(impact_abs, 2),
+                impact_percent=round(impact_pct, 2),
+                points=points,
+            )
+        )
 
     sensitivity_results.sort(key=lambda x: x.impact_absolute, reverse=True)
     logger.info(
         "Sensitivity for '%s': base_npv=%.2f, top='%s'",
-        b.name, base_npv,
+        b.name,
+        base_npv,
         sensitivity_results[0].parameter if sensitivity_results else "n/a",
     )
 
@@ -178,6 +189,7 @@ def _solve_breakeven(
     param_name: str, lower: float, upper: float, base: BaseScenario
 ) -> Optional[float]:
     """Return the value of *param_name* at which NPV crosses 0 within (lower, upper)."""
+
     def f(val: float) -> float:
         params = {
             "initial_investment": base.initial_investment,
@@ -186,9 +198,7 @@ def _solve_breakeven(
             "lifetime_years": base.lifetime_years,
             "discount_rate": base.discount_rate,
         }
-        params[param_name] = (
-            max(1, int(round(val))) if param_name == "lifetime_years" else val
-        )
+        params[param_name] = max(1, int(round(val))) if param_name == "lifetime_years" else val
         return calc_npv(**params)
 
     try:
@@ -198,7 +208,11 @@ def _solve_breakeven(
     if f_low * f_high > 0:
         logger.debug(
             "Break-even for '%s' not bracketed in [%s, %s]: f(low)=%s, f(high)=%s",
-            param_name, lower, upper, f_low, f_high,
+            param_name,
+            lower,
+            upper,
+            f_low,
+            f_high,
         )
         return None
     try:
@@ -218,15 +232,24 @@ def _bracket_upper(param_name: str, base_value: float, multiplier: float = 10.0)
 def run_breakeven(data: BreakEvenInput) -> BreakEvenResult:
     b = data.base
     base_npv = calc_npv(
-        b.initial_investment, b.operational_cost,
-        b.expected_savings, b.lifetime_years, b.discount_rate,
+        b.initial_investment,
+        b.operational_cost,
+        b.expected_savings,
+        b.lifetime_years,
+        b.discount_rate,
     )
 
     breakeven_savings = _solve_breakeven(
-        "expected_savings", 0.0, _bracket_upper("expected_savings", b.expected_savings), b,
+        "expected_savings",
+        0.0,
+        _bracket_upper("expected_savings", b.expected_savings),
+        b,
     )
     breakeven_investment = _solve_breakeven(
-        "initial_investment", 0.0, _bracket_upper("initial_investment", b.initial_investment), b,
+        "initial_investment",
+        0.0,
+        _bracket_upper("initial_investment", b.initial_investment),
+        b,
     )
     breakeven_rate_raw = _solve_breakeven("discount_rate", 0.001, 9.99, b)
     breakeven_rate = (
@@ -236,8 +259,11 @@ def run_breakeven(data: BreakEvenInput) -> BreakEvenResult:
     breakeven_years: Optional[float] = None
     for years in range(1, 101):
         npv = calc_npv(
-            b.initial_investment, b.operational_cost,
-            b.expected_savings, years, b.discount_rate,
+            b.initial_investment,
+            b.operational_cost,
+            b.expected_savings,
+            years,
+            b.discount_rate,
         )
         if npv >= 0:
             breakeven_years = float(years)
@@ -245,14 +271,16 @@ def run_breakeven(data: BreakEvenInput) -> BreakEvenResult:
 
     logger.info(
         "Break-even for '%s': savings=%s, investment=%s, rate=%s, years=%s",
-        b.name, breakeven_savings, breakeven_investment, breakeven_rate, breakeven_years,
+        b.name,
+        breakeven_savings,
+        breakeven_investment,
+        breakeven_rate,
+        breakeven_years,
     )
 
     return BreakEvenResult(
         base_npv=base_npv,
-        breakeven_savings=(
-            round(breakeven_savings, 2) if breakeven_savings is not None else None
-        ),
+        breakeven_savings=(round(breakeven_savings, 2) if breakeven_savings is not None else None),
         breakeven_investment=(
             round(breakeven_investment, 2) if breakeven_investment is not None else None
         ),

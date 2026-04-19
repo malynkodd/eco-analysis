@@ -5,16 +5,16 @@ Authorization model:
   * manager — read-only on projects; can approve/reject.
   * admin   — full access to every project.
 """
+
 from __future__ import annotations
-
-from fastapi import Depends, HTTPException, Query
-
-from sqlalchemy.orm import Session
 
 import auth
 import models
 import schemas
 from database import get_db
+from fastapi import Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
 from eco_common.api_setup import create_app
 from eco_common.envelope import paginate
 
@@ -89,12 +89,7 @@ def get_projects(
     if not _is_privileged(current_user["role"]):
         q = q.filter(models.Project.owner_id == _require_user_id(current_user))
     total = q.count()
-    rows = (
-        q.order_by(models.Project.id.desc())
-        .offset((page - 1) * limit)
-        .limit(limit)
-        .all()
-    )
+    rows = q.order_by(models.Project.id.desc()).offset((page - 1) * limit).limit(limit).all()
     items = [schemas.ProjectResponse.model_validate(r, from_attributes=True) for r in rows]
     return paginate(items=items, page=page, limit=limit, total=total)
 
@@ -151,9 +146,7 @@ def update_project_status(
     current_user: dict = Depends(auth.get_current_user),
 ):
     if not _is_privileged(current_user["role"]):
-        raise HTTPException(
-            status_code=403, detail="Only managers or admins can change status"
-        )
+        raise HTTPException(status_code=403, detail="Only managers or admins can change status")
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -177,9 +170,7 @@ def approve_project(
     current_user: dict = Depends(auth.get_current_user),
 ):
     if not _is_privileged(current_user["role"]):
-        raise HTTPException(
-            status_code=403, detail="Only managers or admins can approve"
-        )
+        raise HTTPException(status_code=403, detail="Only managers or admins can approve")
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -203,9 +194,7 @@ def reject_project(
     current_user: dict = Depends(auth.get_current_user),
 ):
     if not _is_privileged(current_user["role"]):
-        raise HTTPException(
-            status_code=403, detail="Only managers or admins can reject"
-        )
+        raise HTTPException(status_code=403, detail="Only managers or admins can reject")
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -267,9 +256,7 @@ def delete_measure(
         .filter(models.Measure.project_id == project_id)
     )
     if current_user["role"] != "admin":
-        q = q.join(models.Project).filter(
-            models.Project.owner_id == _require_user_id(current_user)
-        )
+        q = q.join(models.Project).filter(models.Project.owner_id == _require_user_id(current_user))
     measure = q.first()
     if not measure:
         raise HTTPException(status_code=404, detail="Measure not found")

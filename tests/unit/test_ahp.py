@@ -6,6 +6,7 @@ Verifies:
   * is_benefit cost criteria are inverted in the alternative ranking
   * principal eigenvalue equals the matrix dimension when fully consistent
 """
+
 from __future__ import annotations
 
 import math
@@ -141,8 +142,8 @@ def test_ranking_is_dense_and_descending():
         criteria=["a", "b"],
         comparison_matrix=[[1.0, 3.0], [1 / 3, 1.0]],
         alternatives=[
-            _alt("Low",  a=1, b=1),
-            _alt("Mid",  a=2, b=2),
+            _alt("Low", a=1, b=1),
+            _alt("Mid", a=2, b=2),
             _alt("High", a=4, b=3),
         ],
     )

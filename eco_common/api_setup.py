@@ -5,6 +5,7 @@ Every service should call ``create_app(...)`` instead of constructing
 handlers and request-id middleware are wired identically across the
 entire microservice fleet.
 """
+
 from __future__ import annotations
 
 import os

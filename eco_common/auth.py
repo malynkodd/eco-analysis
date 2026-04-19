@@ -5,6 +5,7 @@ Validates signature, issuer, audience, and exp/nbf. Returns the decoded
 identity as a dict so endpoints can use ``Depends(get_current_user)``
 without coupling to a SQLAlchemy session.
 """
+
 from __future__ import annotations
 
 import os

@@ -15,6 +15,7 @@ Also mints an ephemeral RSA keypair + env vars so that ``eco_common.auth``
 (which reads JWT_PUBLIC_KEY_PATH at module import time) can load under test
 without a real secrets directory being mounted.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -33,8 +34,10 @@ sys.path.insert(0, str(ROOT))
 def _bootstrap_jwt_env() -> None:
     if os.getenv("JWT_PUBLIC_KEY_PATH") and os.getenv("JWT_ISSUER") and os.getenv("JWT_AUDIENCE"):
         return
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
+    # Local imports keep `cryptography` off the import path when the caller
+    # already provisioned real keys via environment variables.
+    from cryptography.hazmat.primitives import serialization  # noqa: PLC0415
+    from cryptography.hazmat.primitives.asymmetric import rsa  # noqa: PLC0415
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     pub_pem = key.public_key().public_bytes(

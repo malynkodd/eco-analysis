@@ -6,25 +6,31 @@ exactly as in Saaty (1980). Alternatives are scored by vector-normalising
 their raw values per criterion (with benefit/cost orientation) and then
 applying the weighted sum.
 """
+
 from __future__ import annotations
 
 import logging
 from typing import Sequence
 
 import numpy as np
-
 from schemas import AHPInput, AHPResult
 
 logger = logging.getLogger(__name__)
 
 RANDOM_INDEX = {
-    1: 0.00, 2: 0.00, 3: 0.58, 4: 0.90,
-    5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41,
-    9: 1.45, 10: 1.49,
+    1: 0.00,
+    2: 0.00,
+    3: 0.58,
+    4: 0.90,
+    5: 1.12,
+    6: 1.24,
+    7: 1.32,
+    8: 1.41,
+    9: 1.45,
+    10: 1.49,
 }
 
-SAATY_VALUES = {1 / 9, 1 / 8, 1 / 7, 1 / 6, 1 / 5, 1 / 4, 1 / 3, 1 / 2,
-                1, 2, 3, 4, 5, 6, 7, 8, 9}
+SAATY_VALUES = {1 / 9, 1 / 8, 1 / 7, 1 / 6, 1 / 5, 1 / 4, 1 / 3, 1 / 2, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 
 
 class AHPValidationError(ValueError):
@@ -42,17 +48,13 @@ def _validate_saaty_matrix(matrix: np.ndarray) -> None:
             )
         for j in range(i + 1, n):
             if matrix[i, j] <= 0 or matrix[j, i] <= 0:
-                raise AHPValidationError(
-                    f"Comparison [{i},{j}] and reciprocal must be positive"
-                )
+                raise AHPValidationError(f"Comparison [{i},{j}] and reciprocal must be positive")
             if not _within_saaty_scale(matrix[i, j]):
                 raise AHPValidationError(
                     f"Value at [{i},{j}]={matrix[i, j]:.4f} not on Saaty 1–9 scale"
                 )
             if not np.isclose(matrix[i, j] * matrix[j, i], 1.0, atol=1e-3):
-                raise AHPValidationError(
-                    f"Reciprocity violated: M[{i},{j}] * M[{j},{i}] != 1"
-                )
+                raise AHPValidationError(f"Reciprocity violated: M[{i},{j}] * M[{j},{i}] != 1")
 
 
 def _within_saaty_scale(value: float) -> bool:
@@ -81,7 +83,7 @@ def _normalise_alternative_scores(
     is_benefit: Sequence[bool],
 ) -> np.ndarray:
     """Vector-normalise per criterion and flip cost criteria so higher = better."""
-    norms = np.sqrt((raw_scores ** 2).sum(axis=0))
+    norms = np.sqrt((raw_scores**2).sum(axis=0))
     norms = np.where(norms == 0, 1.0, norms)
     normalised = raw_scores / norms
     for j, benefit in enumerate(is_benefit):
@@ -96,9 +98,7 @@ def calculate_ahp(data: AHPInput) -> AHPResult:
     n = len(data.criteria)
     matrix = np.array(data.comparison_matrix, dtype=float)
     if matrix.shape != (n, n):
-        raise AHPValidationError(
-            "Comparison matrix dimensions do not match number of criteria"
-        )
+        raise AHPValidationError("Comparison matrix dimensions do not match number of criteria")
     _validate_saaty_matrix(matrix)
 
     weights, lambda_max = _principal_eigenvector(matrix)
@@ -108,15 +108,11 @@ def calculate_ahp(data: AHPInput) -> AHPResult:
     cr = float(ci / ri) if ri > 0 else 0.0
     is_consistent = cr < 0.1
     if not is_consistent:
-        logger.warning(
-            "AHP CR=%.4f >= 0.1 — pairwise judgements are inconsistent", cr
-        )
+        logger.warning("AHP CR=%.4f >= 0.1 — pairwise judgements are inconsistent", cr)
 
     is_benefit = data.is_benefit or [True] * n
     if len(is_benefit) != n:
-        raise AHPValidationError(
-            "is_benefit length must match number of criteria"
-        )
+        raise AHPValidationError("is_benefit length must match number of criteria")
 
     raw = np.array(
         [[float(alt.get(c, 0.0)) for c in data.criteria] for alt in data.alternatives],
@@ -127,13 +123,15 @@ def calculate_ahp(data: AHPInput) -> AHPResult:
 
     ranking = []
     for i, alt in enumerate(data.alternatives):
-        ranking.append({
-            "name": alt["name"],
-            "score": round(float(weighted_scores[i]), 6),
-            "scores_per_criterion": {
-                c: round(float(raw[i, j]), 4) for j, c in enumerate(data.criteria)
-            },
-        })
+        ranking.append(
+            {
+                "name": alt["name"],
+                "score": round(float(weighted_scores[i]), 6),
+                "scores_per_criterion": {
+                    c: round(float(raw[i, j]), 4) for j, c in enumerate(data.criteria)
+                },
+            }
+        )
     ranking.sort(key=lambda r: r["score"], reverse=True)
     for rank, item in enumerate(ranking, start=1):
         item["rank"] = rank

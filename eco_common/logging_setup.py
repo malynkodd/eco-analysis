@@ -10,6 +10,7 @@ during ``create_app(...)``. It:
 * injects the X-Request-ID held in ``request_id_ctx`` into every event
   so logs can be joined to specific requests in production
 """
+
 from __future__ import annotations
 
 import logging
@@ -50,35 +51,38 @@ def configure_logging() -> None:
         structlog.processors.format_exc_info,
     ]
 
-    logging.config.dictConfig({
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "json": {
-                "()": structlog.stdlib.ProcessorFormatter,
-                "processor": structlog.processors.JSONRenderer(),
-                "foreign_pre_chain": shared_processors,
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "json": {
+                    "()": structlog.stdlib.ProcessorFormatter,
+                    "processor": structlog.processors.JSONRenderer(),
+                    "foreign_pre_chain": shared_processors,
+                },
             },
-        },
-        "handlers": {
-            "stdout": {
-                "class": "logging.StreamHandler",
-                "stream": sys.stdout,
-                "formatter": "json",
+            "handlers": {
+                "stdout": {
+                    "class": "logging.StreamHandler",
+                    "stream": sys.stdout,
+                    "formatter": "json",
+                },
             },
-        },
-        "root": {"level": _level(), "handlers": ["stdout"]},
-        "loggers": {
-            "uvicorn": {"level": _level(), "propagate": True},
-            "uvicorn.error": {"level": _level(), "propagate": True},
-            "uvicorn.access": {"level": _level(), "propagate": True},
-            "gunicorn.error": {"level": _level(), "propagate": True},
-            "gunicorn.access": {"level": _level(), "propagate": True},
-        },
-    })
+            "root": {"level": _level(), "handlers": ["stdout"]},
+            "loggers": {
+                "uvicorn": {"level": _level(), "propagate": True},
+                "uvicorn.error": {"level": _level(), "propagate": True},
+                "uvicorn.access": {"level": _level(), "propagate": True},
+                "gunicorn.error": {"level": _level(), "propagate": True},
+                "gunicorn.access": {"level": _level(), "propagate": True},
+            },
+        }
+    )
 
     structlog.configure(
-        processors=shared_processors + [
+        processors=shared_processors
+        + [
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(

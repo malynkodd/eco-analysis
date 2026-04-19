@@ -1,4 +1,5 @@
 """Pydantic v2 schemas for the project service."""
+
 from __future__ import annotations
 
 from datetime import datetime

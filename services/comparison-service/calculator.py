@@ -5,6 +5,7 @@ returns those values when no real solution exists). Missing values are
 ranked last in their respective category; payback ``None`` is treated as
 ``+inf`` (lower is better) and the others as ``-inf`` (higher is better).
 """
+
 from __future__ import annotations
 
 import logging
@@ -48,12 +49,14 @@ def calculate_pareto(measures: List[MeasureData]) -> List[ParetoItem]:
             ):
                 is_dominated = True
                 break
-        items.append(ParetoItem(
-            name=m.name,
-            npv=m.npv,
-            co2_reduction=m.co2_reduction,
-            is_pareto_optimal=not is_dominated,
-        ))
+        items.append(
+            ParetoItem(
+                name=m.name,
+                npv=m.npv,
+                co2_reduction=m.co2_reduction,
+                is_pareto_optimal=not is_dominated,
+            )
+        )
     return items
 
 
@@ -64,17 +67,13 @@ def compare_measures(measures: List[MeasureData]) -> ComparisonResult:
     npv_ranks = rank_list([m.npv for m in measures], reverse=True)
     irr_ranks = rank_list([_safe_higher_better(m.irr) for m in measures], reverse=True)
     bcr_ranks = rank_list([_safe_higher_better(m.bcr) for m in measures], reverse=True)
-    pb_ranks = rank_list(
-        [_safe_lower_better(m.simple_payback) for m in measures], reverse=False
-    )
+    pb_ranks = rank_list([_safe_lower_better(m.simple_payback) for m in measures], reverse=False)
     co2_ranks = rank_list([m.co2_reduction for m in measures], reverse=True)
 
     ahp_ranks: Optional[List[int]] = None
     topsis_ranks: Optional[List[int]] = None
     if any(m.ahp_score is not None for m in measures):
-        ahp_ranks = rank_list(
-            [_safe_higher_better(m.ahp_score) for m in measures], reverse=True
-        )
+        ahp_ranks = rank_list([_safe_higher_better(m.ahp_score) for m in measures], reverse=True)
     if any(m.topsis_score is not None for m in measures):
         topsis_ranks = rank_list(
             [_safe_higher_better(m.topsis_score) for m in measures], reverse=True
@@ -88,18 +87,20 @@ def compare_measures(measures: List[MeasureData]) -> ComparisonResult:
         if topsis_ranks:
             ranks_to_avg.append(topsis_ranks[i])
         consensus_score = round(sum(ranks_to_avg) / len(ranks_to_avg), 3)
-        ranking_table.append(RankingRow(
-            name=m.name,
-            rank_npv=npv_ranks[i],
-            rank_irr=irr_ranks[i],
-            rank_bcr=bcr_ranks[i],
-            rank_payback=pb_ranks[i],
-            rank_co2=co2_ranks[i],
-            rank_ahp=ahp_ranks[i] if ahp_ranks else None,
-            rank_topsis=topsis_ranks[i] if topsis_ranks else None,
-            consensus_score=consensus_score,
-            consensus_rank=0,
-        ))
+        ranking_table.append(
+            RankingRow(
+                name=m.name,
+                rank_npv=npv_ranks[i],
+                rank_irr=irr_ranks[i],
+                rank_bcr=bcr_ranks[i],
+                rank_payback=pb_ranks[i],
+                rank_co2=co2_ranks[i],
+                rank_ahp=ahp_ranks[i] if ahp_ranks else None,
+                rank_topsis=topsis_ranks[i] if topsis_ranks else None,
+                consensus_score=consensus_score,
+                consensus_rank=0,
+            )
+        )
 
     ranking_table.sort(key=lambda x: x.consensus_score)
     for i, row in enumerate(ranking_table):
@@ -124,7 +125,9 @@ def compare_measures(measures: List[MeasureData]) -> ComparisonResult:
 
     logger.info(
         "Comparison done: %d measures, best_consensus='%s', conflicting=%s",
-        n, best_consensus, conflicting,
+        n,
+        best_consensus,
+        conflicting,
     )
 
     return ComparisonResult(

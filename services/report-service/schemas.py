@@ -1,5 +1,6 @@
-from pydantic import BaseModel
 from typing import List, Optional
+
+from pydantic import BaseModel
 
 
 class FinancialData(BaseModel):
@@ -44,8 +45,8 @@ class TOPSISData(BaseModel):
 
 class SensitivityData(BaseModel):
     parameter: str
-    impact_absolute: float = 0.0   # absolute NPV swing (currency units)
-    impact_percent: float = 0.0    # relative swing (percent of |base NPV|)
+    impact_absolute: float = 0.0  # absolute NPV swing (currency units)
+    impact_percent: float = 0.0  # relative swing (percent of |base NPV|)
 
 
 class ReportInput(BaseModel):

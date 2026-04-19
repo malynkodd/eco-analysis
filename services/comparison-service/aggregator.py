@@ -5,6 +5,7 @@ The merge rule is: take the latest financial result per measure name,
 the latest eco result per measure name, and the latest AHP/TOPSIS scores
 (if present) — then emit one ``MeasureData`` per measure.
 """
+
 from __future__ import annotations
 
 from typing import Dict, List, Optional

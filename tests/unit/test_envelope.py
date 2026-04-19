@@ -1,4 +1,5 @@
 """Unit tests for the standard response envelope."""
+
 from __future__ import annotations
 
 import json
@@ -56,7 +57,10 @@ def test_paginate_emits_pagination_meta():
     body = json.loads(resp.body)
     assert body["data"] == [1, 2, 3]
     assert body["meta"]["pagination"] == {
-        "page": 2, "limit": 10, "total": 23, "pages": 3,
+        "page": 2,
+        "limit": 10,
+        "total": 23,
+        "pages": 3,
     }
 
 
@@ -68,8 +72,10 @@ def test_paginate_zero_total_yields_zero_pages():
 
 def test_error_response_carries_code_message_details():
     resp = error_response(
-        status_code=404, code="not_found",
-        message="Project missing", details={"id": 7},
+        status_code=404,
+        code="not_found",
+        message="Project missing",
+        details={"id": 7},
     )
     assert resp.status_code == 404
     body = json.loads(resp.body)

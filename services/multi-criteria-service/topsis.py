@@ -1,8 +1,8 @@
 """TOPSIS — Hwang & Yoon's distance-to-ideal method."""
+
 from __future__ import annotations
 
 import numpy as np
-
 from schemas import TOPSISInput, TOPSISResult
 
 
@@ -33,13 +33,9 @@ def _build_decision_matrix(
 def calculate_topsis(data: TOPSISInput) -> TOPSISResult:
     n_crit = len(data.criteria)
     if len(data.weights) != n_crit:
-        raise TOPSISValidationError(
-            "Number of weights must match number of criteria"
-        )
+        raise TOPSISValidationError("Number of weights must match number of criteria")
     if len(data.is_benefit) != n_crit:
-        raise TOPSISValidationError(
-            "Number of benefit flags must match number of criteria"
-        )
+        raise TOPSISValidationError("Number of benefit flags must match number of criteria")
     if not data.alternatives:
         raise TOPSISValidationError("At least one alternative is required")
 
@@ -51,7 +47,7 @@ def calculate_topsis(data: TOPSISInput) -> TOPSISResult:
     matrix, names = _build_decision_matrix(data.alternatives, list(data.criteria))
     n_alt = matrix.shape[0]
 
-    norms = np.sqrt((matrix ** 2).sum(axis=0))
+    norms = np.sqrt((matrix**2).sum(axis=0))
     norms = np.where(norms == 0, 1.0, norms)
     normalised = matrix / norms
 

@@ -2,6 +2,7 @@
 
 Lifted to ``eco_common`` in Phase 3.
 """
+
 from __future__ import annotations
 
 from typing import List, Optional

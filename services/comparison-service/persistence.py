@@ -1,4 +1,5 @@
 """CRUD wrapper around ``ComparisonResult`` rows."""
+
 from __future__ import annotations
 
 from typing import List, Optional
@@ -50,8 +51,4 @@ def list_for_project(db: Session, project_id: int) -> List[ComparisonResult]:
 
 
 def get_one(db: Session, result_id: int) -> Optional[ComparisonResult]:
-    return (
-        db.query(ComparisonResult)
-        .filter(ComparisonResult.id == result_id)
-        .first()
-    )
+    return db.query(ComparisonResult).filter(ComparisonResult.id == result_id).first()

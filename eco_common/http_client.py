@@ -5,6 +5,7 @@ Features:
   * exponential-backoff retry on connect / read / 5xx errors
   * per-target circuit breaker that opens after consecutive failures
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -94,9 +95,7 @@ class HttpRetryClient:
         last_exc: Optional[BaseException] = None
         for attempt in range(1, self.max_retries + 1):
             try:
-                async with httpx.AsyncClient(
-                    timeout=self.timeout_seconds
-                ) as client:
+                async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
                     resp = await client.request(
                         method=method,
                         url=url,

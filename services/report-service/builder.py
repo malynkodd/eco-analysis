@@ -5,12 +5,11 @@ comparison-service, multi-criteria-service, and scenario-service via the
 shared ``InternalAPI`` and assembles the merged payload the existing
 PDF/Excel generators expect.
 """
+
 from __future__ import annotations
 
 from typing import Optional
 
-from eco_common.exceptions import InternalServiceError
-from eco_common.internal import InternalAPI
 from schemas import (
     AHPData,
     EcoData,
@@ -20,6 +19,9 @@ from schemas import (
     SensitivityData,
     TOPSISData,
 )
+
+from eco_common.exceptions import InternalServiceError
+from eco_common.internal import InternalAPI
 
 
 def _latest_per_name(rows):
@@ -132,9 +134,7 @@ def _sensitivity_data(rows) -> Optional[list[SensitivityData]]:
         return [
             SensitivityData(
                 parameter=item["parameter"],
-                impact_absolute=float(
-                    item.get("impact_absolute", item.get("impact_percent", 0.0))
-                ),
+                impact_absolute=float(item.get("impact_absolute", item.get("impact_percent", 0.0))),
                 impact_percent=float(item.get("impact_percent", 0.0)),
             )
             for item in items

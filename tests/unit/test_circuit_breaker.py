@@ -1,4 +1,5 @@
 """Unit tests for the circuit breaker in eco_common.http_client."""
+
 from __future__ import annotations
 
 import time

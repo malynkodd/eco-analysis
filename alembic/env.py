@@ -3,6 +3,7 @@
 Reads ``DATABASE_URL`` from the environment (set by docker-compose) and
 imports the shared ``db`` package so autogeneration sees every model.
 """
+
 from __future__ import annotations
 
 import os
@@ -10,8 +11,9 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
+
+from alembic import context
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))

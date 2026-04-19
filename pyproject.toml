@@ -29,21 +29,35 @@ select = [
     "I",    # isort
     "B",    # bugbear
     "C4",   # comprehensions
-    "UP",   # pyupgrade
     "SIM",  # simplify
     "PL",   # pylint subset
-    "RUF",  # ruff-specific
 ]
+# Deliberately NOT selecting UP or RUF00x:
+# * UP (pyupgrade) would rewrite every `List[X]`/`Optional[X]` to PEP-585/604
+#   syntax; the existing code is valid on 3.11 and a mass rewrite belongs in
+#   its own PR, not every CI run.
+# * RUF001/003 flag Cyrillic letters in UI strings/comments — those are
+#   intentional (Ukrainian-language product copy).
 ignore = [
     "E501",     # handled by formatter
+    "PLR0911",  # too many return statements — branch-heavy calculators
+    "PLR0912",  # too many branches — branch-heavy calculators
     "PLR0913",  # too many arguments — calculators legitimately take many
-    "PLR2004",  # magic numbers in tests/calculators are intentional
+    "PLR0915",  # too many statements — report generators are long
+    "PLR2004",  # magic numbers in calculators are intentional
+    "PLW0603",  # module-level counters in Prometheus wrappers
     "B008",     # FastAPI Depends(...) in defaults is idiomatic
+    "B904",     # raise ... from exc is optional in HTTPException translations
+    "B905",     # zip(..., strict=...) — 3.11 default is permissive
+    "SIM105",   # `with contextlib.suppress` is stylistic
+    "SIM108",   # ternary vs. if/else is a readability call, not a lint
+    "C408",     # `dict(a=1)` is legitimate when keys are dynamic-looking
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["PLR2004", "S101"]
-"alembic/env.py" = ["E402"]
+"tests/**"        = ["PLR2004", "S101", "B017"]
+"alembic/env.py"  = ["E402"]
+"alembic/versions/**" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["eco_common", "db"]

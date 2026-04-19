@@ -5,6 +5,7 @@ access through ``engine`` / ``SessionLocal``) so the package can be
 imported in environments without a database (e.g. unit tests for pure
 calculator code).
 """
+
 from __future__ import annotations
 
 import os
@@ -46,9 +47,7 @@ def init_engine(
             with eng.connect() as conn:
                 conn.execute(text("SELECT 1"))
             _engine = eng
-            _SessionLocal = sessionmaker(
-                bind=eng, autocommit=False, autoflush=False, future=True
-            )
+            _SessionLocal = sessionmaker(bind=eng, autocommit=False, autoflush=False, future=True)
             return eng
         except Exception as exc:
             last_exc = exc

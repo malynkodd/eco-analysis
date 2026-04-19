@@ -1,11 +1,8 @@
 """Multi-criteria service — AHP + TOPSIS."""
+
 from __future__ import annotations
 
 from typing import Optional
-
-from fastapi import Depends, HTTPException, Query
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 import ahp
 import auth
@@ -13,10 +10,14 @@ import persistence
 import schemas
 import topsis
 from ahp import AHPValidationError
+from fastapi import Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from topsis import TOPSISValidationError
+
 from db.base import get_db
 from eco_common.api_setup import create_app
 from eco_common.envelope import paginate
-from topsis import TOPSISValidationError
 
 OPENAPI_TAGS = [
     {"name": "ahp", "description": "Analytical Hierarchy Process."},
@@ -76,9 +77,7 @@ def _run_topsis(data: schemas.TOPSISInput) -> schemas.TOPSISResult:
     tags=["ahp"],
     summary="Run AHP and return weights, CR, ranking",
 )
-def run_ahp(
-    data: schemas.AHPInput, current_user: dict = Depends(auth.get_current_user)
-):
+def run_ahp(data: schemas.AHPInput, current_user: dict = Depends(auth.get_current_user)):
     return _run_ahp(data)
 
 
@@ -88,9 +87,7 @@ def run_ahp(
     tags=["topsis"],
     summary="Run TOPSIS with caller-supplied weights",
 )
-def run_topsis(
-    data: schemas.TOPSISInput, current_user: dict = Depends(auth.get_current_user)
-):
+def run_topsis(data: schemas.TOPSISInput, current_user: dict = Depends(auth.get_current_user)):
     return _run_topsis(data)
 
 

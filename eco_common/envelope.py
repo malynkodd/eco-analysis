@@ -13,6 +13,7 @@ returning their domain models without a per-route adapter. Binary
 responses (``Response(media_type="application/pdf")`` etc.) bypass the
 envelope because they are not ``JSONResponse`` instances.
 """
+
 from __future__ import annotations
 
 import json
@@ -85,12 +86,7 @@ class EnvelopeJSONResponse(JSONResponse):
 
 
 def _looks_like_envelope(value: Any) -> bool:
-    return (
-        isinstance(value, dict)
-        and "data" in value
-        and "error" in value
-        and "meta" in value
-    )
+    return isinstance(value, dict) and "data" in value and "error" in value and "meta" in value
 
 
 def paginate(items: List[Any], *, page: int, limit: int, total: int) -> JSONResponse:

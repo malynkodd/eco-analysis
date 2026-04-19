@@ -3,19 +3,19 @@
 Auth-service is the ONLY component that holds the private key. All other
 services verify with the public key (see services/<svc>/auth.py).
 """
+
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import models
+from database import get_db
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-
-import models
-from database import get_db
 
 
 def _require_env(name: str) -> str:

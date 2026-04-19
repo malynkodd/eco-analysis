@@ -8,6 +8,7 @@ instead of defining its own models.
 Imported once per process; the engine is created lazily on first use so
 unit tests that never touch the DB do not need ``DATABASE_URL`` set.
 """
+
 from db.base import Base, SessionLocal, engine, get_db, init_engine
 from db.models import (
     AHPResult,

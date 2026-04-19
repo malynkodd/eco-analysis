@@ -3,6 +3,7 @@
 Skipped when (a) no admin user exists yet, or (b) any project already
 exists. Run manually as ``python seed.py`` from the project-service container.
 """
+
 from __future__ import annotations
 
 from db.base import SessionLocal

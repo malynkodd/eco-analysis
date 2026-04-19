@@ -1,12 +1,12 @@
 """CRUD wrappers around ``AHPResult`` and ``TopsisResult`` rows."""
+
 from __future__ import annotations
 
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from db.models import AHPResult as AHPResultRow
-from db.models import TopsisResult as TopsisResultRow
+from db.models import AHPResult as AHPResultRow, TopsisResult as TopsisResultRow
 
 VERSION = 1
 
@@ -18,9 +18,7 @@ def _save(db: Session, row):
     return row
 
 
-def save_ahp(
-    db: Session, *, project_id: int, input_data: dict, result_data: dict
-) -> AHPResultRow:
+def save_ahp(db: Session, *, project_id: int, input_data: dict, result_data: dict) -> AHPResultRow:
     return _save(
         db,
         AHPResultRow(

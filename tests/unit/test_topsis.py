@@ -1,4 +1,5 @@
 """Unit tests for the multi-criteria TOPSIS calculator."""
+
 from __future__ import annotations
 
 import math
@@ -27,8 +28,8 @@ def test_dominant_alternative_wins():
         is_benefit=[True, False],
         alternatives=[
             _alt("Worst", benefit=1, cost=10),
-            _alt("Best",  benefit=10, cost=1),
-            _alt("Mid",   benefit=5, cost=5),
+            _alt("Best", benefit=10, cost=1),
+            _alt("Mid", benefit=5, cost=5),
         ],
     )
     ranking = calculate_topsis(data).ranking
@@ -104,7 +105,7 @@ def test_cost_criterion_prefers_lower_value():
         is_benefit=[False],
         alternatives=[
             _alt("Expensive", cost=100),
-            _alt("Cheap",     cost=1),
+            _alt("Cheap", cost=1),
         ],
     )
     ranking = calculate_topsis(data).ranking

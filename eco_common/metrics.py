@@ -11,6 +11,7 @@ The collectors are module-globals so multiple ``create_app()`` calls
 inside the same process (tests) reuse the same registry and don't crash
 on duplicate metric registration.
 """
+
 from __future__ import annotations
 
 import time

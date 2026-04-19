@@ -1,4 +1,5 @@
 """Unit tests for the financial calculator (NPV / IRR / BCR / payback / LCCA)."""
+
 from __future__ import annotations
 
 import math
@@ -65,8 +66,11 @@ def test_irr_converges_for_realistic_project():
 
 def test_bcr_above_one_for_profitable_measure():
     bcr = calc.calculate_bcr(
-        expected_savings=300, operational_cost=50,
-        initial_investment=1000, lifetime_years=10, discount_rate=0.05,
+        expected_savings=300,
+        operational_cost=50,
+        initial_investment=1000,
+        lifetime_years=10,
+        discount_rate=0.05,
     )
     assert bcr is not None
     assert bcr > 1.0
@@ -110,10 +114,12 @@ def test_discounted_payback_none_when_never_recovers():
 
 def test_lcca_includes_initial_plus_discounted_opex():
     lcca = calc.calculate_lcca(
-        initial_investment=1000, operational_cost=100,
-        lifetime_years=5, discount_rate=0.10,
+        initial_investment=1000,
+        operational_cost=100,
+        lifetime_years=5,
+        discount_rate=0.10,
     )
-    pv_opex = sum(100 / (1.10 ** t) for t in range(1, 6))
+    pv_opex = sum(100 / (1.10**t) for t in range(1, 6))
     assert math.isclose(lcca, round(1000 + pv_opex, 2), abs_tol=0.01)
 
 
@@ -148,6 +154,10 @@ def test_analyze_measure_populates_all_fields():
 def test_analyze_measure_rejects_zero_lifetime():
     with pytest.raises(Exception):
         FinancialInput(
-            name="X", initial_investment=1, operational_cost=0,
-            expected_savings=1, lifetime_years=0, discount_rate=0.1,
+            name="X",
+            initial_investment=1,
+            operational_cost=0,
+            expected_savings=1,
+            lifetime_years=0,
+            discount_rate=0.1,
         )

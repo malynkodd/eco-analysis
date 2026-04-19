@@ -1,19 +1,19 @@
 """Auth service — JWT issuer (RS256) and gateway verification endpoint."""
+
 from __future__ import annotations
 
 import logging
 import os
-from typing import List
-
-from fastapi import Depends, Header, HTTPException, Query, Response, status
-from fastapi.security import OAuth2PasswordRequestForm
-from jose import JWTError
-from sqlalchemy.orm import Session
 
 import auth
 import models
 import schemas
 from database import SessionLocal, get_db
+from fastapi import Depends, Header, HTTPException, Query, Response, status
+from fastapi.security import OAuth2PasswordRequestForm
+from jose import JWTError
+from sqlalchemy.orm import Session
+
 from eco_common.api_setup import create_app
 from eco_common.envelope import paginate
 
@@ -110,9 +110,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid login or password")
 
-    token = auth.create_access_token(
-        subject=user.username, role=user.role.value, user_id=user.id
-    )
+    token = auth.create_access_token(subject=user.username, role=user.role.value, user_id=user.id)
     return schemas.TokenResponse(
         access_token=token, token_type="bearer", role=user.role.value, username=user.username
     )
@@ -188,7 +186,9 @@ def internal_verify(
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     username = payload.get("sub")
-    user = db.query(models.User).filter(models.User.username == username).first() if username else None
+    user = (
+        db.query(models.User).filter(models.User.username == username).first() if username else None
+    )
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
@@ -196,4 +196,3 @@ def internal_verify(
     response.headers["X-User-Username"] = user.username
     response.headers["X-User-Role"] = user.role.value
     response.status_code = 204
-    return None

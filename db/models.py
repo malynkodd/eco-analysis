@@ -5,6 +5,7 @@ rather than defining duplicate model classes. All result tables use
 JSONB so the calculator services can persist arbitrary input/output
 payloads without schema churn.
 """
+
 from __future__ import annotations
 
 import enum
@@ -28,7 +29,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
-
 
 # ─── Enums ───────────────────────────────────────────────────────────────────
 

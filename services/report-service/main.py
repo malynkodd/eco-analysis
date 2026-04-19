@@ -8,16 +8,17 @@ Two endpoint families:
     take only ``project_id`` and assemble the payload by calling sibling
     services through ``eco_common.internal``.
 """
-from __future__ import annotations
 
-from fastapi import Depends, HTTPException, Query
-from fastapi.responses import Response
+from __future__ import annotations
 
 import auth
 import builder
 import excel_generator
 import generator
 import schemas
+from fastapi import Depends, HTTPException, Query
+from fastapi.responses import Response
+
 from eco_common.api_setup import create_app
 
 OPENAPI_TAGS = [
@@ -70,9 +71,7 @@ def generate_excel_report(
     excel_bytes = excel_generator.generate_excel(data)
     return Response(
         content=excel_bytes,
-        media_type=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
+        media_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         headers={"Content-Disposition": "attachment; filename=eco_report.xlsx"},
     )
 
@@ -107,9 +106,7 @@ async def project_pdf(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": (
-                f"attachment; filename=eco_report_project_{project_id}.pdf"
-            )
+            "Content-Disposition": (f"attachment; filename=eco_report_project_{project_id}.pdf")
         },
     )
 
@@ -138,12 +135,8 @@ async def project_excel(
     excel_bytes = excel_generator.generate_excel(report_input)
     return Response(
         content=excel_bytes,
-        media_type=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
+        media_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         headers={
-            "Content-Disposition": (
-                f"attachment; filename=eco_report_project_{project_id}.xlsx"
-            )
+            "Content-Disposition": (f"attachment; filename=eco_report_project_{project_id}.xlsx")
         },
     )

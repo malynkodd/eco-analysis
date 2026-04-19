@@ -1,16 +1,17 @@
 """Financial analysis service — NPV / IRR / BCR / payback / LCCA."""
+
 from __future__ import annotations
 
 from typing import Optional
-
-from fastapi import Depends, HTTPException, Query
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 import auth
 import calculator
 import persistence
 import schemas
+from fastapi import Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from db.base import get_db
 from eco_common.api_setup import create_app
 from eco_common.envelope import paginate

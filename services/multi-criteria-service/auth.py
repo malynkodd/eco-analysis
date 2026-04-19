@@ -1,4 +1,5 @@
 """Re-export the shared RS256 verifier from ``eco_common``."""
+
 from eco_common.auth import (
     JWT_ALGORITHM,
     decode_token,

@@ -1,4 +1,5 @@
 """Unit tests for the scenario engine (what-if / sensitivity / break-even)."""
+
 from __future__ import annotations
 
 import math
@@ -37,8 +38,11 @@ def _base(**overrides) -> BaseScenario:
 def test_npv_zero_when_savings_match_investment():
     # Choose savings so that PV(annual_cf, r=0, n=5) = investment
     npv = calc.calc_npv(
-        initial_investment=500, operational_cost=0,
-        expected_savings=100, lifetime_years=5, discount_rate=0.0,
+        initial_investment=500,
+        operational_cost=0,
+        expected_savings=100,
+        lifetime_years=5,
+        discount_rate=0.0,
     )
     assert npv == 0.0
 
@@ -92,8 +96,11 @@ def test_sensitivity_returns_one_block_per_parameter():
     res = calc.run_sensitivity(data)
     params = {r.parameter for r in res.results}
     assert params == {
-        "expected_savings", "initial_investment", "discount_rate",
-        "operational_cost", "lifetime_years",
+        "expected_savings",
+        "initial_investment",
+        "discount_rate",
+        "operational_cost",
+        "lifetime_years",
     }
 
 
@@ -136,12 +143,18 @@ def test_breakeven_years_is_first_year_npv_nonnegative():
     assert res.breakeven_years is not None
     y = int(res.breakeven_years)
     npv_at_y = calc.calc_npv(
-        base.initial_investment, base.operational_cost,
-        base.expected_savings, y, base.discount_rate,
+        base.initial_investment,
+        base.operational_cost,
+        base.expected_savings,
+        y,
+        base.discount_rate,
     )
     npv_before = calc.calc_npv(
-        base.initial_investment, base.operational_cost,
-        base.expected_savings, max(1, y - 1), base.discount_rate,
+        base.initial_investment,
+        base.operational_cost,
+        base.expected_savings,
+        max(1, y - 1),
+        base.discount_rate,
     )
     assert npv_at_y >= 0
     if y > 1:
