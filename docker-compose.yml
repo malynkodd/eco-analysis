@@ -66,6 +66,13 @@ services:
         condition: service_completed_successfully
     networks:
       - eco_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   project-service:
     build:
@@ -91,6 +98,13 @@ services:
         condition: service_completed_successfully
     networks:
       - eco_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   financial-service:
     build:
@@ -116,6 +130,13 @@ services:
         condition: service_completed_successfully
     networks:
       - eco_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   eco-impact-service:
     build:
@@ -141,6 +162,13 @@ services:
         condition: service_completed_successfully
     networks:
       - eco_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   multi-criteria-service:
     build:
@@ -166,6 +194,13 @@ services:
         condition: service_completed_successfully
     networks:
       - eco_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   scenario-service:
     build:
@@ -191,6 +226,13 @@ services:
         condition: service_completed_successfully
     networks:
       - eco_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   comparison-service:
     build:
@@ -216,6 +258,13 @@ services:
         condition: service_completed_successfully
     networks:
       - eco_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   report-service:
     build:
@@ -235,12 +284,20 @@ services:
       - ./keys/jwt_public.pem:/run/keys/jwt_public.pem:ro
     networks:
       - eco_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
     container_name: eco_frontend
     networks:
       - eco_network
+    restart: unless-stopped
 
   nginx:
     image: nginx:alpine
@@ -253,17 +310,27 @@ services:
       - ./nginx/errors:/usr/share/nginx/html/errors:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
-      - auth-service
-      - project-service
-      - financial-service
-      - eco-impact-service
-      - multi-criteria-service
-      - scenario-service
-      - comparison-service
-      - report-service
-      - frontend
+      auth-service:
+        condition: service_healthy
+      project-service:
+        condition: service_healthy
+      financial-service:
+        condition: service_healthy
+      eco-impact-service:
+        condition: service_healthy
+      multi-criteria-service:
+        condition: service_healthy
+      scenario-service:
+        condition: service_healthy
+      comparison-service:
+        condition: service_healthy
+      report-service:
+        condition: service_healthy
+      frontend:
+        condition: service_started
     networks:
       - eco_network
+    restart: unless-stopped
 
 volumes:
   postgres_data:

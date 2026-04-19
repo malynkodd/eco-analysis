@@ -15,6 +15,7 @@ from typing import Any, Dict, Mapping, Optional
 
 import httpx
 
+from eco_common.envelope import request_id_ctx
 from eco_common.exceptions import CircuitBreakerOpen, RemoteServiceError
 
 log = logging.getLogger(__name__)
@@ -85,6 +86,11 @@ class HttpRetryClient:
         breaker = self._breaker(service)
         breaker.before_call(service)
 
+        merged_headers: Dict[str, str] = dict(headers or {})
+        rid = request_id_ctx.get()
+        if rid and "X-Request-ID" not in {k.title() for k in merged_headers}:
+            merged_headers["X-Request-ID"] = rid
+
         last_exc: Optional[BaseException] = None
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -94,7 +100,7 @@ class HttpRetryClient:
                     resp = await client.request(
                         method=method,
                         url=url,
-                        headers=dict(headers or {}),
+                        headers=merged_headers,
                         json=json,
                         params=params,
                     )

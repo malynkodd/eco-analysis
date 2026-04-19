@@ -22,6 +22,8 @@ from .envelope import (
     error_response,
     request_id_ctx,
 )
+from .logging_setup import configure_logging
+from .metrics import mount_metrics
 
 
 def _is_production() -> bool:
@@ -63,6 +65,7 @@ def create_app(
     description: Optional[str] = None,
     version: str = "1.0.0",
 ) -> FastAPI:
+    configure_logging()
     app = FastAPI(
         title=title,
         version=version,
@@ -74,6 +77,8 @@ def create_app(
         openapi_url=None if _is_production() else "/openapi.json",
         default_response_class=EnvelopeJSONResponse,
     )
+
+    mount_metrics(app)
 
     app.add_middleware(RequestIDMiddleware)
     app.add_middleware(
