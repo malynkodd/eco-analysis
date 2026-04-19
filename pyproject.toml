@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eco-analysis"
+version = "1.0.0"
+description = "Energy efficiency cost-benefit analysis platform (FastAPI microservices)."
+requires-python = ">=3.11"
+
+# ─── Ruff ─────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    "alembic/versions",
+    "frontend",
+    "**/__pycache__",
+    "**/.venv",
+    "**/build",
+    "**/dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # bugbear
+    "C4",   # comprehensions
+    "UP",   # pyupgrade
+    "SIM",  # simplify
+    "PL",   # pylint subset
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",     # handled by formatter
+    "PLR0913",  # too many arguments — calculators legitimately take many
+    "PLR2004",  # magic numbers in tests/calculators are intentional
+    "B008",     # FastAPI Depends(...) in defaults is idiomatic
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "S101"]
+"alembic/env.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["eco_common", "db"]
+combine-as-imports = true
+
+# ─── Pyright ──────────────────────────────────────────────────────────────────
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingImports = "warning"
+reportGeneralTypeIssues = "warning"
+reportOptionalMemberAccess = "warning"
+exclude = [
+    "alembic/versions",
+    "frontend",
+    "**/__pycache__",
+    "**/.venv",
+    "**/build",
+    "**/dist",
+]
+extraPaths = [
+    "eco_common",
+    "db",
+    "services/auth-service",
+    "services/project-service",
+    "services/financial-service",
+    "services/eco-impact-service",
+    "services/multi-criteria-service",
+    "services/scenario-service",
+    "services/comparison-service",
+    "services/report-service",
+]
+
+# ─── Pytest ───────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+]
+markers = [
+    "integration: tests requiring docker/postgres",
+    "slow: long-running tests",
+]
+
+# ─── Coverage ─────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+branch = true
+source = [
+    "eco_common",
+    "services/multi-criteria-service",
+    "services/financial-service",
+    "services/scenario-service",
+]
+omit = [
+    "*/main.py",
+    "*/wait_for_db.py",
+    "*/seed.py",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
