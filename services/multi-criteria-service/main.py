@@ -1,10 +1,39 @@
-from fastapi import FastAPI, Depends, HTTPException
-import schemas
-import ahp
-import topsis
-import auth
+import os
+from typing import List
 
-app = FastAPI(title="Multi-Criteria Service", root_path="/api/multicriteria")
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
+import ahp
+import auth
+import schemas
+import topsis
+
+
+def _is_production() -> bool:
+    return os.getenv("ENVIRONMENT", "development").lower() == "production"
+
+
+def _cors_origins() -> List[str]:
+    raw = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+app = FastAPI(
+    title="Multi-Criteria Service",
+    root_path="/api/v1/multicriteria",
+    docs_url=None if _is_production() else "/docs",
+    redoc_url=None if _is_production() else "/redoc",
+    openapi_url=None if _is_production() else "/openapi.json",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+)
 
 
 @app.get("/health")

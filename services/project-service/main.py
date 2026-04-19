@@ -1,11 +1,15 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+import os
 from typing import List
-from database import get_db, engine, Base
+
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+import auth
 import models
 import schemas
-import auth
+from database import Base, engine, get_db
 
 Base.metadata.create_all(bind=engine)
 
@@ -19,7 +23,31 @@ with engine.connect() as _conn:
     ))
     _conn.commit()
 
-app = FastAPI(title="Project Service", root_path="/api/projects")
+
+def _is_production() -> bool:
+    return os.getenv("ENVIRONMENT", "development").lower() == "production"
+
+
+def _cors_origins() -> List[str]:
+    raw = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+app = FastAPI(
+    title="Project Service",
+    root_path="/api/v1/projects",
+    docs_url=None if _is_production() else "/docs",
+    redoc_url=None if _is_production() else "/redoc",
+    openapi_url=None if _is_production() else "/openapi.json",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+)
 
 
 @app.get("/health")
