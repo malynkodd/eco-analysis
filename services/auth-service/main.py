@@ -1,10 +1,11 @@
 """Auth service — JWT issuer (RS256) and gateway verification endpoint."""
+from __future__ import annotations
+
 import logging
 import os
 from typing import List
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, Header, HTTPException, Query, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -13,43 +14,28 @@ import auth
 import models
 import schemas
 from database import SessionLocal, get_db
+from eco_common.api_setup import create_app
+from eco_common.envelope import paginate
 
 log = logging.getLogger(__name__)
 
+OPENAPI_TAGS = [
+    {"name": "auth", "description": "Login, registration, current user."},
+    {"name": "users", "description": "Admin-only user management."},
+    {"name": "internal", "description": "Gateway-only verification endpoint."},
+    {"name": "system", "description": "Health and metadata."},
+]
 
-def _is_production() -> bool:
-    return os.getenv("ENVIRONMENT", "development").lower() == "production"
-
-
-def _cors_origins() -> List[str]:
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "")
-    return [o.strip() for o in raw.split(",") if o.strip()]
-
-
-app = FastAPI(
+app = create_app(
     title="Auth Service",
+    description="JWT issuance, user registry, gateway verification.",
     root_path="/api/v1/auth",
-    docs_url=None if _is_production() else "/docs",
-    redoc_url=None if _is_production() else "/redoc",
-    openapi_url=None if _is_production() else "/openapi.json",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    openapi_tags=OPENAPI_TAGS,
 )
 
 
 @app.on_event("startup")
 def bootstrap_admin() -> None:
-    """Create the admin user from env vars on first boot.
-
-    If an admin already exists, env vars are not required.
-    If no admin exists and env vars are missing, startup fails fast.
-    """
     db: Session = SessionLocal()
     try:
         existing_admin = (
@@ -83,16 +69,19 @@ def bootstrap_admin() -> None:
         db.close()
 
 
-@app.get("/health")
+@app.get("/health", tags=["system"], summary="Liveness probe")
 def health() -> dict:
     return {"status": "ok", "service": "auth-service"}
 
 
-# ─── Public endpoints ────────────────────────────────────────────────────────
-
-@app.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/register",
+    response_model=schemas.UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["auth"],
+    summary="Register a new analyst user",
+)
 def register(payload: schemas.UserRegister, db: Session = Depends(get_db)):
-    """Register a new user. Role is forced to `analyst`; clients cannot pick."""
     if db.query(models.User).filter(models.User.email == payload.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     if db.query(models.User).filter(models.User.username == payload.username).first():
@@ -110,7 +99,12 @@ def register(payload: schemas.UserRegister, db: Session = Depends(get_db)):
     return user
 
 
-@app.post("/login", response_model=schemas.TokenResponse)
+@app.post(
+    "/login",
+    response_model=schemas.TokenResponse,
+    tags=["auth"],
+    summary="Exchange username/password for an RS256 access token",
+)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
@@ -124,24 +118,42 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     )
 
 
-@app.get("/me", response_model=schemas.UserResponse)
+@app.get(
+    "/me",
+    response_model=schemas.UserResponse,
+    tags=["auth"],
+    summary="Return the current user's profile",
+)
 def get_me(current_user: models.User = Depends(auth.get_current_user)):
     return current_user
 
 
-# ─── Admin endpoints ─────────────────────────────────────────────────────────
-
-@app.get("/users", response_model=List[schemas.UserResponse])
+@app.get(
+    "/users",
+    tags=["users"],
+    summary="List all users (admin only)",
+)
 def list_users(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db),
 ):
     if current_user.role != models.UserRole.admin:
         raise HTTPException(status_code=403, detail="Admin only")
-    return db.query(models.User).all()
+    base = db.query(models.User).order_by(models.User.id.desc())
+    total = base.count()
+    rows = base.offset((page - 1) * limit).limit(limit).all()
+    items = [schemas.UserResponse.model_validate(u, from_attributes=True) for u in rows]
+    return paginate(items=items, page=page, limit=limit, total=total)
 
 
-@app.patch("/users/{user_id}/role", response_model=schemas.UserResponse)
+@app.patch(
+    "/users/{user_id}/role",
+    response_model=schemas.UserResponse,
+    tags=["users"],
+    summary="Promote or demote a user (admin only)",
+)
 def change_user_role(
     user_id: int,
     payload: schemas.RoleUpdate,
@@ -161,19 +173,12 @@ def change_user_role(
     return user
 
 
-# ─── Internal endpoint for the API gateway (NGINX auth_request) ──────────────
-
-@app.get("/internal/verify", include_in_schema=False)
+@app.get("/internal/verify", include_in_schema=False, tags=["internal"])
 def internal_verify(
     response: Response,
     authorization: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    """Validate a Bearer token. Used by NGINX `auth_request`.
-
-    On success: 204 + headers `X-User-Id`, `X-User-Username`, `X-User-Role`.
-    On failure: 401.
-    """
     if not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
     token = authorization.split(None, 1)[1].strip()

@@ -1,11 +1,9 @@
-"""Financial analysis service."""
+"""Financial analysis service — NPV / IRR / BCR / payback / LCCA."""
 from __future__ import annotations
 
-import os
-from typing import List, Optional
+from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -14,40 +12,35 @@ import calculator
 import persistence
 import schemas
 from db.base import get_db
+from eco_common.api_setup import create_app
+from eco_common.envelope import paginate
 
+OPENAPI_TAGS = [
+    {"name": "financial", "description": "Stateless financial calculations."},
+    {"name": "projects", "description": "Project-scoped financial results."},
+    {"name": "results", "description": "Persisted result lookup."},
+    {"name": "system", "description": "Health and metadata."},
+]
 
-def _is_production() -> bool:
-    return os.getenv("ENVIRONMENT", "development").lower() == "production"
-
-
-def _cors_origins() -> List[str]:
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "")
-    return [o.strip() for o in raw.split(",") if o.strip()]
-
-
-app = FastAPI(
+app = create_app(
     title="Financial Analysis Service",
+    description="NPV, IRR (brentq), BCR, payback, LCCA per energy-saving measure.",
     root_path="/api/v1/financial",
-    docs_url=None if _is_production() else "/docs",
-    redoc_url=None if _is_production() else "/redoc",
-    openapi_url=None if _is_production() else "/openapi.json",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    openapi_tags=OPENAPI_TAGS,
 )
 
 
-@app.get("/health")
+class SavedFinancialResult(BaseModel):
+    id: int
+    project_id: int
+    version: int
+    status: str
+    result: schemas.FinancialResult
+
+
+@app.get("/health", tags=["system"], summary="Liveness probe")
 def health():
     return {"status": "ok", "service": "financial-service"}
-
-
-# ─── Stateless analysis ──────────────────────────────────────────────────────
 
 
 def _analyze(data: schemas.FinancialInput) -> schemas.FinancialResult:
@@ -57,7 +50,12 @@ def _analyze(data: schemas.FinancialInput) -> schemas.FinancialResult:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@app.post("/analyze", response_model=schemas.FinancialResult)
+@app.post(
+    "/analyze",
+    response_model=schemas.FinancialResult,
+    tags=["financial"],
+    summary="Analyse a single measure",
+)
 def analyze_single(
     data: schemas.FinancialInput,
     current_user: dict = Depends(auth.get_current_user),
@@ -65,7 +63,12 @@ def analyze_single(
     return _analyze(data)
 
 
-@app.post("/analyze/portfolio", response_model=schemas.PortfolioResult)
+@app.post(
+    "/analyze/portfolio",
+    response_model=schemas.PortfolioResult,
+    tags=["financial"],
+    summary="Analyse a portfolio of measures with a shared discount rate",
+)
 def analyze_portfolio(
     data: schemas.PortfolioInput,
     current_user: dict = Depends(auth.get_current_user),
@@ -77,23 +80,12 @@ def analyze_portfolio(
     return schemas.PortfolioResult(results=results)
 
 
-# ─── Persisted analysis ──────────────────────────────────────────────────────
-
-
-class SaveAnalysisRequest(BaseModel):
-    project_id: int
-    input: schemas.FinancialInput
-
-
-class SavedFinancialResult(BaseModel):
-    id: int
-    project_id: int
-    version: int
-    status: str
-    result: schemas.FinancialResult
-
-
-@app.post("/projects/{project_id}/analyze", response_model=SavedFinancialResult)
+@app.post(
+    "/projects/{project_id}/analyze",
+    response_model=SavedFinancialResult,
+    tags=["projects"],
+    summary="Run + persist a financial analysis for a project",
+)
 def analyze_and_save(
     project_id: int,
     payload: schemas.FinancialInput,
@@ -118,15 +110,20 @@ def analyze_and_save(
 
 @app.get(
     "/projects/{project_id}/results",
-    response_model=List[SavedFinancialResult],
+    tags=["projects"],
+    summary="List persisted financial results for a project (paginated)",
 )
 def list_results(
     project_id: int,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
     rows = persistence.list_for_project(db, project_id)
-    return [
+    total = len(rows)
+    sliced = rows[(page - 1) * limit : (page - 1) * limit + limit]
+    items = [
         SavedFinancialResult(
             id=r.id,
             project_id=r.project_id,
@@ -134,11 +131,17 @@ def list_results(
             status=r.status,
             result=schemas.FinancialResult(**r.result_data),
         )
-        for r in rows
+        for r in sliced
     ]
+    return paginate(items=items, page=page, limit=limit, total=total)
 
 
-@app.get("/results/{result_id}", response_model=Optional[SavedFinancialResult])
+@app.get(
+    "/results/{result_id}",
+    response_model=Optional[SavedFinancialResult],
+    tags=["results"],
+    summary="Fetch a single persisted financial result by id",
+)
 def get_result(
     result_id: int,
     db: Session = Depends(get_db),

@@ -1,11 +1,9 @@
 """Comparison service — cross-method ranking + Pareto front."""
 from __future__ import annotations
 
-import os
-from typing import List, Optional
+from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -15,53 +13,24 @@ import calculator
 import persistence
 import schemas
 from db.base import get_db
+from eco_common.api_setup import create_app
+from eco_common.envelope import paginate
 from eco_common.exceptions import InternalServiceError
 from eco_common.internal import InternalAPI
 
+OPENAPI_TAGS = [
+    {"name": "comparison", "description": "Stateless cross-method comparison."},
+    {"name": "projects", "description": "Project-scoped comparison + persistence."},
+    {"name": "results", "description": "Persisted comparison lookup."},
+    {"name": "system", "description": "Health and metadata."},
+]
 
-def _is_production() -> bool:
-    return os.getenv("ENVIRONMENT", "development").lower() == "production"
-
-
-def _cors_origins() -> List[str]:
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "")
-    return [o.strip() for o in raw.split(",") if o.strip()]
-
-
-app = FastAPI(
+app = create_app(
     title="Comparison Service",
+    description="Cross-method consensus ranking + Pareto front across measures.",
     root_path="/api/v1/comparison",
-    docs_url=None if _is_production() else "/docs",
-    redoc_url=None if _is_production() else "/redoc",
-    openapi_url=None if _is_production() else "/openapi.json",
+    openapi_tags=OPENAPI_TAGS,
 )
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-)
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "service": "comparison-service"}
-
-
-# ─── Stateless ───────────────────────────────────────────────────────────────
-
-
-@app.post("/compare", response_model=schemas.ComparisonResult)
-def compare(
-    data: schemas.ComparisonInput,
-    current_user: dict = Depends(auth.get_current_user),
-):
-    return calculator.compare_measures(data.measures)
-
-
-# ─── Persisted ───────────────────────────────────────────────────────────────
 
 
 class SavedComparisonResult(BaseModel):
@@ -72,17 +41,35 @@ class SavedComparisonResult(BaseModel):
     result: schemas.ComparisonResult
 
 
+@app.get("/health", tags=["system"], summary="Liveness probe")
+def health():
+    return {"status": "ok", "service": "comparison-service"}
+
+
 @app.post(
-    "/projects/{project_id}/compare", response_model=SavedComparisonResult
+    "/compare",
+    response_model=schemas.ComparisonResult,
+    tags=["comparison"],
+    summary="Compare a list of measures supplied in the request body",
+)
+def compare(
+    data: schemas.ComparisonInput,
+    current_user: dict = Depends(auth.get_current_user),
+):
+    return calculator.compare_measures(data.measures)
+
+
+@app.post(
+    "/projects/{project_id}/compare",
+    response_model=SavedComparisonResult,
+    tags=["projects"],
+    summary="Build measures from sibling services + persist a comparison",
 )
 async def compare_and_save(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
-    """Compare a project's measures using results already persisted by the
-    sibling services. Body intentionally empty — comparison-service owns
-    fetching its own inputs."""
     api = InternalAPI()
     token = current_user["token"]
     try:
@@ -131,15 +118,20 @@ async def compare_and_save(
 
 @app.get(
     "/projects/{project_id}/results",
-    response_model=List[SavedComparisonResult],
+    tags=["projects"],
+    summary="List persisted comparisons for a project (paginated)",
 )
 def list_results(
     project_id: int,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
     rows = persistence.list_for_project(db, project_id)
-    return [
+    total = len(rows)
+    sliced = rows[(page - 1) * limit : (page - 1) * limit + limit]
+    items = [
         SavedComparisonResult(
             id=r.id,
             project_id=r.project_id,
@@ -147,11 +139,17 @@ def list_results(
             status=r.status,
             result=schemas.ComparisonResult(**r.result_data),
         )
-        for r in rows
+        for r in sliced
     ]
+    return paginate(items=items, page=page, limit=limit, total=total)
 
 
-@app.get("/results/{result_id}", response_model=Optional[SavedComparisonResult])
+@app.get(
+    "/results/{result_id}",
+    response_model=Optional[SavedComparisonResult],
+    tags=["results"],
+    summary="Fetch a single persisted comparison by id",
+)
 def get_result(
     result_id: int,
     db: Session = Depends(get_db),

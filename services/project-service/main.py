@@ -4,57 +4,37 @@ Authorization model:
   * analyst — owns the projects they create; can manage their own.
   * manager — read-only on projects; can approve/reject.
   * admin   — full access to every project.
-
-The current user is identified by ``user_id`` (FK to ``users.id``)
-extracted from the RS256 JWT.
 """
 from __future__ import annotations
 
-import os
-from typing import List
+from fastapi import Depends, HTTPException, Query
 
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 import auth
 import models
 import schemas
 from database import get_db
+from eco_common.api_setup import create_app
+from eco_common.envelope import paginate
 
+OPENAPI_TAGS = [
+    {"name": "projects", "description": "Project lifecycle and approval."},
+    {"name": "measures", "description": "Energy-efficiency measures attached to a project."},
+    {"name": "system", "description": "Health and metadata."},
+]
 
-def _is_production() -> bool:
-    return os.getenv("ENVIRONMENT", "development").lower() == "production"
-
-
-def _cors_origins() -> List[str]:
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "")
-    return [o.strip() for o in raw.split(",") if o.strip()]
-
-
-app = FastAPI(
+app = create_app(
     title="Project Service",
+    description="Projects, measures, manager approval workflow.",
     root_path="/api/v1/projects",
-    docs_url=None if _is_production() else "/docs",
-    redoc_url=None if _is_production() else "/redoc",
-    openapi_url=None if _is_production() else "/openapi.json",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    openapi_tags=OPENAPI_TAGS,
 )
 
 
-@app.get("/health")
+@app.get("/health", tags=["system"], summary="Liveness probe")
 def health():
     return {"status": "ok", "service": "project-service"}
-
-
-# ─── helpers ─────────────────────────────────────────────────────────────────
 
 
 def _require_user_id(current_user: dict) -> int:
@@ -68,10 +48,13 @@ def _is_privileged(role: str) -> bool:
     return role in ("manager", "admin")
 
 
-# ─── PROJECTS ────────────────────────────────────────────────────────────────
-
-
-@app.post("/", response_model=schemas.ProjectResponse, status_code=201)
+@app.post(
+    "/",
+    response_model=schemas.ProjectResponse,
+    status_code=201,
+    tags=["projects"],
+    summary="Create a project",
+)
 def create_project(
     project_data: schemas.ProjectCreate,
     db: Session = Depends(get_db),
@@ -91,18 +74,37 @@ def create_project(
     return project
 
 
-@app.get("/", response_model=List[schemas.ProjectResponse])
+@app.get(
+    "/",
+    tags=["projects"],
+    summary="List projects (paginated)",
+)
 def get_projects(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
     q = db.query(models.Project)
     if not _is_privileged(current_user["role"]):
         q = q.filter(models.Project.owner_id == _require_user_id(current_user))
-    return q.order_by(models.Project.id.desc()).all()
+    total = q.count()
+    rows = (
+        q.order_by(models.Project.id.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
+    items = [schemas.ProjectResponse.model_validate(r, from_attributes=True) for r in rows]
+    return paginate(items=items, page=page, limit=limit, total=total)
 
 
-@app.get("/{project_id}", response_model=schemas.ProjectResponse)
+@app.get(
+    "/{project_id}",
+    response_model=schemas.ProjectResponse,
+    tags=["projects"],
+    summary="Get a single project",
+)
 def get_project(
     project_id: int,
     db: Session = Depends(get_db),
@@ -117,7 +119,7 @@ def get_project(
     return project
 
 
-@app.delete("/{project_id}")
+@app.delete("/{project_id}", tags=["projects"], summary="Delete a project")
 def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
@@ -136,7 +138,12 @@ def delete_project(
     return {"message": "Project deleted"}
 
 
-@app.patch("/{project_id}/status", response_model=schemas.ProjectResponse)
+@app.patch(
+    "/{project_id}/status",
+    response_model=schemas.ProjectResponse,
+    tags=["projects"],
+    summary="Override project status (manager / admin)",
+)
 def update_project_status(
     project_id: int,
     status_data: schemas.StatusUpdate,
@@ -158,7 +165,12 @@ def update_project_status(
     return project
 
 
-@app.patch("/{project_id}/approve", response_model=schemas.ProjectResponse)
+@app.patch(
+    "/{project_id}/approve",
+    response_model=schemas.ProjectResponse,
+    tags=["projects"],
+    summary="Approve a project",
+)
 def approve_project(
     project_id: int,
     db: Session = Depends(get_db),
@@ -178,7 +190,12 @@ def approve_project(
     return project
 
 
-@app.patch("/{project_id}/reject", response_model=schemas.ProjectResponse)
+@app.patch(
+    "/{project_id}/reject",
+    response_model=schemas.ProjectResponse,
+    tags=["projects"],
+    summary="Reject a project with a comment",
+)
 def reject_project(
     project_id: int,
     reject_data: schemas.StatusUpdate,
@@ -199,13 +216,12 @@ def reject_project(
     return project
 
 
-# ─── MEASURES ────────────────────────────────────────────────────────────────
-
-
 @app.post(
     "/{project_id}/measures",
     response_model=schemas.MeasureResponse,
     status_code=201,
+    tags=["measures"],
+    summary="Attach a measure to a project",
 )
 def add_measure(
     project_id: int,
@@ -232,7 +248,11 @@ def add_measure(
     return measure
 
 
-@app.delete("/{project_id}/measures/{measure_id}")
+@app.delete(
+    "/{project_id}/measures/{measure_id}",
+    tags=["measures"],
+    summary="Delete a measure from a project",
+)
 def delete_measure(
     project_id: int,
     measure_id: int,

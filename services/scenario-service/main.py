@@ -1,11 +1,9 @@
 """Scenario service — what-if, sensitivity, break-even analyses."""
 from __future__ import annotations
 
-import os
 from typing import Any, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -14,74 +12,22 @@ import calculator
 import persistence
 import schemas
 from db.base import get_db
+from eco_common.api_setup import create_app
+from eco_common.envelope import paginate
 
+OPENAPI_TAGS = [
+    {"name": "scenario", "description": "Stateless what-if / sensitivity / break-even."},
+    {"name": "projects", "description": "Project-scoped scenarios."},
+    {"name": "results", "description": "Persisted scenario lookup."},
+    {"name": "system", "description": "Health and metadata."},
+]
 
-def _is_production() -> bool:
-    return os.getenv("ENVIRONMENT", "development").lower() == "production"
-
-
-def _cors_origins() -> List[str]:
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "")
-    return [o.strip() for o in raw.split(",") if o.strip()]
-
-
-app = FastAPI(
+app = create_app(
     title="Scenario Service",
+    description="What-if, sensitivity (tornado), break-even analyses around NPV.",
     root_path="/api/v1/scenario",
-    docs_url=None if _is_production() else "/docs",
-    redoc_url=None if _is_production() else "/redoc",
-    openapi_url=None if _is_production() else "/openapi.json",
+    openapi_tags=OPENAPI_TAGS,
 )
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-)
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "service": "scenario-service"}
-
-
-# ─── Stateless ───────────────────────────────────────────────────────────────
-
-
-def _guarded(callable_, payload):
-    try:
-        return callable_(payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.post("/whatif", response_model=List[schemas.WhatIfResult])
-def whatif_analysis(
-    data: schemas.WhatIfInput,
-    current_user: dict = Depends(auth.get_current_user),
-):
-    return _guarded(calculator.run_whatif, data)
-
-
-@app.post("/sensitivity", response_model=schemas.SensitivityAnalysisResult)
-def sensitivity_analysis(
-    data: schemas.SensitivityInput,
-    current_user: dict = Depends(auth.get_current_user),
-):
-    return _guarded(calculator.run_sensitivity, data)
-
-
-@app.post("/breakeven", response_model=schemas.BreakEvenResult)
-def breakeven_analysis(
-    data: schemas.BreakEvenInput,
-    current_user: dict = Depends(auth.get_current_user),
-):
-    return _guarded(calculator.run_breakeven, data)
-
-
-# ─── Persisted ───────────────────────────────────────────────────────────────
 
 
 class SavedScenarioResult(BaseModel):
@@ -91,6 +37,18 @@ class SavedScenarioResult(BaseModel):
     version: int
     status: str
     result: Any
+
+
+@app.get("/health", tags=["system"], summary="Liveness probe")
+def health():
+    return {"status": "ok", "service": "scenario-service"}
+
+
+def _guarded(callable_, payload):
+    try:
+        return callable_(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def _persist(
@@ -109,7 +67,49 @@ def _persist(
 
 
 @app.post(
-    "/projects/{project_id}/whatif", response_model=SavedScenarioResult
+    "/whatif",
+    response_model=List[schemas.WhatIfResult],
+    tags=["scenario"],
+    summary="What-if analysis: NPV change for each parameter override",
+)
+def whatif_analysis(
+    data: schemas.WhatIfInput,
+    current_user: dict = Depends(auth.get_current_user),
+):
+    return _guarded(calculator.run_whatif, data)
+
+
+@app.post(
+    "/sensitivity",
+    response_model=schemas.SensitivityAnalysisResult,
+    tags=["scenario"],
+    summary="Sensitivity (tornado) analysis around the base scenario",
+)
+def sensitivity_analysis(
+    data: schemas.SensitivityInput,
+    current_user: dict = Depends(auth.get_current_user),
+):
+    return _guarded(calculator.run_sensitivity, data)
+
+
+@app.post(
+    "/breakeven",
+    response_model=schemas.BreakEvenResult,
+    tags=["scenario"],
+    summary="Break-even analysis: thresholds where NPV = 0",
+)
+def breakeven_analysis(
+    data: schemas.BreakEvenInput,
+    current_user: dict = Depends(auth.get_current_user),
+):
+    return _guarded(calculator.run_breakeven, data)
+
+
+@app.post(
+    "/projects/{project_id}/whatif",
+    response_model=SavedScenarioResult,
+    tags=["projects"],
+    summary="Run + persist a what-if analysis for a project",
 )
 def whatif_and_save(
     project_id: int,
@@ -119,9 +119,7 @@ def whatif_and_save(
 ):
     result = _guarded(calculator.run_whatif, payload)
     result_payload = [r.model_dump() for r in result]
-    row = _persist(
-        db, project_id, "whatif", payload.model_dump(), result_payload
-    )
+    row = _persist(db, project_id, "whatif", payload.model_dump(), result_payload)
     return SavedScenarioResult(
         id=row.id,
         project_id=row.project_id,
@@ -133,7 +131,10 @@ def whatif_and_save(
 
 
 @app.post(
-    "/projects/{project_id}/sensitivity", response_model=SavedScenarioResult
+    "/projects/{project_id}/sensitivity",
+    response_model=SavedScenarioResult,
+    tags=["projects"],
+    summary="Run + persist a sensitivity analysis for a project",
 )
 def sensitivity_and_save(
     project_id: int,
@@ -143,9 +144,7 @@ def sensitivity_and_save(
 ):
     result = _guarded(calculator.run_sensitivity, payload)
     result_payload = result.model_dump()
-    row = _persist(
-        db, project_id, "sensitivity", payload.model_dump(), result_payload
-    )
+    row = _persist(db, project_id, "sensitivity", payload.model_dump(), result_payload)
     return SavedScenarioResult(
         id=row.id,
         project_id=row.project_id,
@@ -157,7 +156,10 @@ def sensitivity_and_save(
 
 
 @app.post(
-    "/projects/{project_id}/breakeven", response_model=SavedScenarioResult
+    "/projects/{project_id}/breakeven",
+    response_model=SavedScenarioResult,
+    tags=["projects"],
+    summary="Run + persist a break-even analysis for a project",
 )
 def breakeven_and_save(
     project_id: int,
@@ -167,9 +169,7 @@ def breakeven_and_save(
 ):
     result = _guarded(calculator.run_breakeven, payload)
     result_payload = result.model_dump()
-    row = _persist(
-        db, project_id, "breakeven", payload.model_dump(), result_payload
-    )
+    row = _persist(db, project_id, "breakeven", payload.model_dump(), result_payload)
     return SavedScenarioResult(
         id=row.id,
         project_id=row.project_id,
@@ -181,15 +181,21 @@ def breakeven_and_save(
 
 
 @app.get(
-    "/projects/{project_id}/results", response_model=List[SavedScenarioResult]
+    "/projects/{project_id}/results",
+    tags=["projects"],
+    summary="List persisted scenarios for a project (paginated)",
 )
 def list_results(
     project_id: int,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
     rows = persistence.list_for_project(db, project_id)
-    return [
+    total = len(rows)
+    sliced = rows[(page - 1) * limit : (page - 1) * limit + limit]
+    items = [
         SavedScenarioResult(
             id=r.id,
             project_id=r.project_id,
@@ -198,11 +204,17 @@ def list_results(
             status=r.status,
             result=r.result_data.get("result"),
         )
-        for r in rows
+        for r in sliced
     ]
+    return paginate(items=items, page=page, limit=limit, total=total)
 
 
-@app.get("/results/{result_id}", response_model=Optional[SavedScenarioResult])
+@app.get(
+    "/results/{result_id}",
+    response_model=Optional[SavedScenarioResult],
+    tags=["results"],
+    summary="Fetch a single persisted scenario by id",
+)
 def get_result(
     result_id: int,
     db: Session = Depends(get_db),

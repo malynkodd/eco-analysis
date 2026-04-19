@@ -1,11 +1,9 @@
 """Eco-impact service — CO2/footprint/damage calculations."""
 from __future__ import annotations
 
-import os
-from typing import List, Optional
+from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -14,43 +12,43 @@ import calculator
 import persistence
 import schemas
 from db.base import get_db
+from eco_common.api_setup import create_app
+from eco_common.envelope import paginate
 
+OPENAPI_TAGS = [
+    {"name": "eco", "description": "Stateless eco-impact calculations."},
+    {"name": "projects", "description": "Project-scoped eco results."},
+    {"name": "results", "description": "Persisted result lookup."},
+    {"name": "system", "description": "Health and metadata."},
+]
 
-def _is_production() -> bool:
-    return os.getenv("ENVIRONMENT", "development").lower() == "production"
-
-
-def _cors_origins() -> List[str]:
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "")
-    return [o.strip() for o in raw.split(",") if o.strip()]
-
-
-app = FastAPI(
+app = create_app(
     title="Eco Impact Service",
+    description="CO2 reduction, averted damage, emission factors.",
     root_path="/api/v1/eco",
-    docs_url=None if _is_production() else "/docs",
-    redoc_url=None if _is_production() else "/redoc",
-    openapi_url=None if _is_production() else "/openapi.json",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    openapi_tags=OPENAPI_TAGS,
 )
 
 
-@app.get("/health")
+class SavedEcoResult(BaseModel):
+    id: int
+    project_id: int
+    version: int
+    status: str
+    result: schemas.EcoResult
+
+
+@app.get("/health", tags=["system"], summary="Liveness probe")
 def health():
     return {"status": "ok", "service": "eco-impact-service"}
 
 
-# ─── Stateless analysis ──────────────────────────────────────────────────────
-
-
-@app.post("/analyze", response_model=schemas.EcoResult)
+@app.post(
+    "/analyze",
+    response_model=schemas.EcoResult,
+    tags=["eco"],
+    summary="Compute CO2 reduction + averted damage for a single measure",
+)
 def analyze_single(
     data: schemas.EcoInput,
     current_user: dict = Depends(auth.get_current_user),
@@ -58,7 +56,12 @@ def analyze_single(
     return calculator.calculate_eco_impact(data)
 
 
-@app.post("/analyze/portfolio", response_model=schemas.PortfolioEcoResult)
+@app.post(
+    "/analyze/portfolio",
+    response_model=schemas.PortfolioEcoResult,
+    tags=["eco"],
+    summary="Aggregate eco-impact for a portfolio of measures",
+)
 def analyze_portfolio(
     data: schemas.PortfolioEcoInput,
     current_user: dict = Depends(auth.get_current_user),
@@ -73,23 +76,21 @@ def analyze_portfolio(
     )
 
 
-@app.get("/emission-factors")
+@app.get(
+    "/emission-factors",
+    tags=["eco"],
+    summary="Return the emission-factor table used by the calculator",
+)
 def get_emission_factors(current_user: dict = Depends(auth.get_current_user)):
     return {fuel.value: factor for fuel, factor in calculator.EMISSION_FACTORS.items()}
 
 
-# ─── Persisted analysis ──────────────────────────────────────────────────────
-
-
-class SavedEcoResult(BaseModel):
-    id: int
-    project_id: int
-    version: int
-    status: str
-    result: schemas.EcoResult
-
-
-@app.post("/projects/{project_id}/analyze", response_model=SavedEcoResult)
+@app.post(
+    "/projects/{project_id}/analyze",
+    response_model=SavedEcoResult,
+    tags=["projects"],
+    summary="Run + persist an eco analysis for a project",
+)
 def analyze_and_save(
     project_id: int,
     payload: schemas.EcoInput,
@@ -112,14 +113,22 @@ def analyze_and_save(
     )
 
 
-@app.get("/projects/{project_id}/results", response_model=List[SavedEcoResult])
+@app.get(
+    "/projects/{project_id}/results",
+    tags=["projects"],
+    summary="List persisted eco results for a project (paginated)",
+)
 def list_results(
     project_id: int,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
     rows = persistence.list_for_project(db, project_id)
-    return [
+    total = len(rows)
+    sliced = rows[(page - 1) * limit : (page - 1) * limit + limit]
+    items = [
         SavedEcoResult(
             id=r.id,
             project_id=r.project_id,
@@ -127,11 +136,17 @@ def list_results(
             status=r.status,
             result=schemas.EcoResult(**r.result_data),
         )
-        for r in rows
+        for r in sliced
     ]
+    return paginate(items=items, page=page, limit=limit, total=total)
 
 
-@app.get("/results/{result_id}", response_model=Optional[SavedEcoResult])
+@app.get(
+    "/results/{result_id}",
+    response_model=Optional[SavedEcoResult],
+    tags=["results"],
+    summary="Fetch a single persisted eco result by id",
+)
 def get_result(
     result_id: int,
     db: Session = Depends(get_db),

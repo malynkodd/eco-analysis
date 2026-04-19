@@ -10,11 +10,7 @@ Two endpoint families:
 """
 from __future__ import annotations
 
-import os
-from typing import List
-
-from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, HTTPException, Query
 from fastapi.responses import Response
 
 import auth
@@ -22,43 +18,33 @@ import builder
 import excel_generator
 import generator
 import schemas
+from eco_common.api_setup import create_app
 
+OPENAPI_TAGS = [
+    {"name": "legacy", "description": "Body-driven PDF/Excel generation."},
+    {"name": "projects", "description": "Project-scoped PDF/Excel generation."},
+    {"name": "system", "description": "Health and metadata."},
+]
 
-def _is_production() -> bool:
-    return os.getenv("ENVIRONMENT", "development").lower() == "production"
-
-
-def _cors_origins() -> List[str]:
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "")
-    return [o.strip() for o in raw.split(",") if o.strip()]
-
-
-app = FastAPI(
+app = create_app(
     title="Report Service",
+    description="PDF (ReportLab) and Excel (openpyxl) reports for projects.",
     root_path="/api/v1/reports",
-    docs_url=None if _is_production() else "/docs",
-    redoc_url=None if _is_production() else "/redoc",
-    openapi_url=None if _is_production() else "/openapi.json",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    openapi_tags=OPENAPI_TAGS,
 )
 
 
-@app.get("/health")
+@app.get("/health", tags=["system"], summary="Liveness probe")
 def health():
     return {"status": "ok", "service": "report-service"}
 
 
-# ─── Legacy body-driven generation ───────────────────────────────────────────
-
-
-@app.post("/generate")
+@app.post(
+    "/generate",
+    tags=["legacy"],
+    summary="Generate a PDF report from a fully-assembled ReportInput",
+    response_class=Response,
+)
 def generate_report(
     data: schemas.ReportInput,
     current_user: dict = Depends(auth.get_current_user),
@@ -71,7 +57,12 @@ def generate_report(
     )
 
 
-@app.post("/generate/excel")
+@app.post(
+    "/generate/excel",
+    tags=["legacy"],
+    summary="Generate an Excel report from a fully-assembled ReportInput",
+    response_class=Response,
+)
 def generate_excel_report(
     data: schemas.ReportInput,
     current_user: dict = Depends(auth.get_current_user),
@@ -86,14 +77,16 @@ def generate_excel_report(
     )
 
 
-# ─── Project-scoped (project_id only) ────────────────────────────────────────
-
-
 def _analyst_name(current_user: dict) -> str:
     return current_user.get("username") or "Analyst"
 
 
-@app.post("/projects/{project_id}/pdf")
+@app.post(
+    "/projects/{project_id}/pdf",
+    tags=["projects"],
+    summary="Build the report payload for a project and return a PDF",
+    response_class=Response,
+)
 async def project_pdf(
     project_id: int,
     recommendation: str = Query(default=""),
@@ -121,7 +114,12 @@ async def project_pdf(
     )
 
 
-@app.post("/projects/{project_id}/excel")
+@app.post(
+    "/projects/{project_id}/excel",
+    tags=["projects"],
+    summary="Build the report payload for a project and return an Excel workbook",
+    response_class=Response,
+)
 async def project_excel(
     project_id: int,
     recommendation: str = Query(default=""),
