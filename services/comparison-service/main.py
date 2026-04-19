@@ -9,11 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+import aggregator
 import auth
 import calculator
 import persistence
 import schemas
 from db.base import get_db
+from eco_common.exceptions import InternalServiceError
+from eco_common.internal import InternalAPI
 
 
 def _is_production() -> bool:
@@ -72,17 +75,49 @@ class SavedComparisonResult(BaseModel):
 @app.post(
     "/projects/{project_id}/compare", response_model=SavedComparisonResult
 )
-def compare_and_save(
+async def compare_and_save(
     project_id: int,
-    payload: schemas.ComparisonInput,
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
-    result = calculator.compare_measures(payload.measures)
+    """Compare a project's measures using results already persisted by the
+    sibling services. Body intentionally empty — comparison-service owns
+    fetching its own inputs."""
+    api = InternalAPI()
+    token = current_user["token"]
+    try:
+        await api.get_project(project_id, token)
+        financial = await api.get_financial_results(project_id, token)
+        eco = await api.get_eco_results(project_id, token)
+        ahp = await api.get_ahp_results(project_id, token)
+        topsis = await api.get_topsis_results(project_id, token)
+    except InternalServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    measures = aggregator.build_measures(
+        financial_results=financial,
+        eco_results=eco,
+        ahp_results=ahp,
+        topsis_results=topsis,
+    )
+    if not measures:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No measures with both financial and eco results found "
+                "for this project."
+            ),
+        )
+
+    result = calculator.compare_measures(measures)
+    input_snapshot = {
+        "project_id": project_id,
+        "measures": [m.model_dump() for m in measures],
+    }
     row = persistence.save_result(
         db,
         project_id=project_id,
-        input_data=payload.model_dump(),
+        input_data=input_snapshot,
         result_data=result.model_dump(),
     )
     return SavedComparisonResult(
