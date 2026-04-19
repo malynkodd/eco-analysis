@@ -50,12 +50,19 @@ def health():
 # ─── Stateless analysis ──────────────────────────────────────────────────────
 
 
+def _analyze(data: schemas.FinancialInput) -> schemas.FinancialResult:
+    try:
+        return calculator.analyze_measure(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.post("/analyze", response_model=schemas.FinancialResult)
 def analyze_single(
     data: schemas.FinancialInput,
     current_user: dict = Depends(auth.get_current_user),
 ):
-    return calculator.analyze_measure(data)
+    return _analyze(data)
 
 
 @app.post("/analyze/portfolio", response_model=schemas.PortfolioResult)
@@ -66,7 +73,7 @@ def analyze_portfolio(
     results = []
     for measure in data.measures:
         measure.discount_rate = data.discount_rate
-        results.append(calculator.analyze_measure(measure))
+        results.append(_analyze(measure))
     return schemas.PortfolioResult(results=results)
 
 
@@ -93,7 +100,7 @@ def analyze_and_save(
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
-    result = calculator.analyze_measure(payload)
+    result = _analyze(payload)
     row = persistence.save_result(
         db,
         project_id=project_id,

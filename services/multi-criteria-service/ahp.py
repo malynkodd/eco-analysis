@@ -1,99 +1,148 @@
+"""AHP — principal eigenvector weights with Saaty validation.
+
+Weights are derived from the dominant (largest-magnitude real) eigenvector
+of the pairwise comparison matrix; consistency is computed from λ_max
+exactly as in Saaty (1980). Alternatives are scored by vector-normalising
+their raw values per criterion (with benefit/cost orientation) and then
+applying the weighted sum.
+"""
+from __future__ import annotations
+
 import logging
+from typing import Sequence
+
 import numpy as np
-from typing import List
+
 from schemas import AHPInput, AHPResult
 
 logger = logging.getLogger(__name__)
 
-# Індекси узгодженості для матриць розміром 1-10 (таблиця Сааті)
 RANDOM_INDEX = {
     1: 0.00, 2: 0.00, 3: 0.58, 4: 0.90,
     5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41,
-    9: 1.45, 10: 1.49
+    9: 1.45, 10: 1.49,
 }
+
+SAATY_VALUES = {1 / 9, 1 / 8, 1 / 7, 1 / 6, 1 / 5, 1 / 4, 1 / 3, 1 / 2,
+                1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+
+class AHPValidationError(ValueError):
+    """Raised when a comparison matrix violates Saaty's preconditions."""
+
+
+def _validate_saaty_matrix(matrix: np.ndarray) -> None:
+    n = matrix.shape[0]
+    if matrix.shape != (n, n):
+        raise AHPValidationError("Comparison matrix must be square")
+    for i in range(n):
+        if not np.isclose(matrix[i, i], 1.0):
+            raise AHPValidationError(
+                f"Diagonal element [{i},{i}] must equal 1.0, got {matrix[i, i]}"
+            )
+        for j in range(i + 1, n):
+            if matrix[i, j] <= 0 or matrix[j, i] <= 0:
+                raise AHPValidationError(
+                    f"Comparison [{i},{j}] and reciprocal must be positive"
+                )
+            if not _within_saaty_scale(matrix[i, j]):
+                raise AHPValidationError(
+                    f"Value at [{i},{j}]={matrix[i, j]:.4f} not on Saaty 1–9 scale"
+                )
+            if not np.isclose(matrix[i, j] * matrix[j, i], 1.0, atol=1e-3):
+                raise AHPValidationError(
+                    f"Reciprocity violated: M[{i},{j}] * M[{j},{i}] != 1"
+                )
+
+
+def _within_saaty_scale(value: float) -> bool:
+    return any(np.isclose(value, ref, atol=1e-3) for ref in SAATY_VALUES)
+
+
+def _principal_eigenvector(matrix: np.ndarray) -> tuple[np.ndarray, float]:
+    """Return (weights, lambda_max) using the dominant real eigenpair."""
+    eigvals, eigvecs = np.linalg.eig(matrix)
+    real_mask = np.isclose(eigvals.imag, 0.0, atol=1e-6)
+    if not real_mask.any():
+        raise AHPValidationError("Matrix has no real principal eigenvalue")
+    real_vals = eigvals[real_mask].real
+    real_vecs = eigvecs[:, real_mask].real
+    idx = int(np.argmax(real_vals))
+    lambda_max = float(real_vals[idx])
+    vec = np.abs(real_vecs[:, idx])
+    total = vec.sum()
+    if total == 0:
+        raise AHPValidationError("Principal eigenvector is degenerate")
+    return vec / total, lambda_max
+
+
+def _normalise_alternative_scores(
+    raw_scores: np.ndarray,
+    is_benefit: Sequence[bool],
+) -> np.ndarray:
+    """Vector-normalise per criterion and flip cost criteria so higher = better."""
+    norms = np.sqrt((raw_scores ** 2).sum(axis=0))
+    norms = np.where(norms == 0, 1.0, norms)
+    normalised = raw_scores / norms
+    for j, benefit in enumerate(is_benefit):
+        if not benefit:
+            col_max = normalised[:, j].max()
+            if col_max > 0:
+                normalised[:, j] = col_max - normalised[:, j]
+    return normalised
 
 
 def calculate_ahp(data: AHPInput) -> AHPResult:
     n = len(data.criteria)
     matrix = np.array(data.comparison_matrix, dtype=float)
+    if matrix.shape != (n, n):
+        raise AHPValidationError(
+            "Comparison matrix dimensions do not match number of criteria"
+        )
+    _validate_saaty_matrix(matrix)
 
-    # ─── Крок 0: Виправлення оберненої симетрії матриці ───────────
-    # AHP вимагає A[i][j] * A[j][i] = 1 (обернена симетрія).
-    # Якщо клієнт передав неузгоджену матрицю — виправляємо автоматично:
-    # верхній трикутник лишаємо як є, нижній примусово = 1 / верхній.
-    for i in range(n):
-        for j in range(i + 1, n):
-            if matrix[i][j] <= 0:
-                logger.warning(
-                    "AHP matrix[%d][%d] = %f is non-positive, resetting to 1",
-                    i, j, matrix[i][j]
-                )
-                matrix[i][j] = 1.0
-            # Enforce A[j][i] = 1 / A[i][j]
-            matrix[j][i] = 1.0 / matrix[i][j]
-        # Diagonal must be 1
-        matrix[i][i] = 1.0
+    weights, lambda_max = _principal_eigenvector(matrix)
 
-    logger.debug("AHP matrix after symmetry correction:\n%s", matrix)
-
-    # ─── Крок 1: Нормалізація матриці ─────────────────────────────
-    # Ділимо кожен елемент на суму стовпця
-    col_sums = matrix.sum(axis=0)
-    normalized = matrix / col_sums
-
-    # ─── Крок 2: Вектор пріоритетів (ваги критеріїв) ──────────────
-    # Середнє по рядках нормалізованої матриці
-    weights = normalized.mean(axis=1)
-
-    # ─── Крок 3: Перевірка узгодженості (CR) ──────────────────────
-    # Знаходимо λ_max
-    weighted_sum = matrix @ weights
-    lambda_values = weighted_sum / weights
-    lambda_max = lambda_values.mean()
-
-    # Consistency Index (CI)
     ci = (lambda_max - n) / (n - 1) if n > 1 else 0.0
-
-    # Random Index (RI) з таблиці Сааті
     ri = RANDOM_INDEX.get(n, 1.49)
-
-    # Consistency Ratio (CR) — має бути < 0.1
-    cr = ci / ri if ri > 0 else 0.0
-
-    if cr >= 0.1:
+    cr = float(ci / ri) if ri > 0 else 0.0
+    is_consistent = cr < 0.1
+    if not is_consistent:
         logger.warning(
-            "AHP consistency ratio CR=%.4f >= 0.1 — matrix is inconsistent", cr
+            "AHP CR=%.4f >= 0.1 — pairwise judgements are inconsistent", cr
         )
 
-    # ─── Крок 4: Ранжування альтернатив ───────────────────────────
+    is_benefit = data.is_benefit or [True] * n
+    if len(is_benefit) != n:
+        raise AHPValidationError(
+            "is_benefit length must match number of criteria"
+        )
+
+    raw = np.array(
+        [[float(alt.get(c, 0.0)) for c in data.criteria] for alt in data.alternatives],
+        dtype=float,
+    )
+    normalised = _normalise_alternative_scores(raw, is_benefit)
+    weighted_scores = normalised @ weights
+
     ranking = []
-    for alt in data.alternatives:
-        name = alt["name"]
-        scores = [alt.get(criterion, 0) for criterion in data.criteria]
-
-        # Зважена сума оцінок
-        weighted_score = sum(
-            score * weight
-            for score, weight in zip(scores, weights)
-        )
+    for i, alt in enumerate(data.alternatives):
         ranking.append({
-            "name": name,
-            "score": round(float(weighted_score), 4),
+            "name": alt["name"],
+            "score": round(float(weighted_scores[i]), 6),
             "scores_per_criterion": {
-                c: round(s, 3)
-                for c, s in zip(data.criteria, scores)
-            }
+                c: round(float(raw[i, j]), 4) for j, c in enumerate(data.criteria)
+            },
         })
-
-    # Сортуємо за зваженою оцінкою (більше = краще)
-    ranking.sort(key=lambda x: x["score"], reverse=True)
-    for i, item in enumerate(ranking):
-        item["rank"] = i + 1
+    ranking.sort(key=lambda r: r["score"], reverse=True)
+    for rank, item in enumerate(ranking, start=1):
+        item["rank"] = rank
 
     return AHPResult(
-        criteria=data.criteria,
-        weights=[round(float(w), 4) for w in weights],
-        consistency_ratio=round(float(cr), 4),
-        is_consistent=bool(cr < 0.1),
-        ranking=ranking
+        criteria=list(data.criteria),
+        weights=[round(float(w), 6) for w in weights],
+        consistency_ratio=round(cr, 6),
+        is_consistent=is_consistent,
+        lambda_max=round(lambda_max, 6),
+        ranking=ranking,
     )

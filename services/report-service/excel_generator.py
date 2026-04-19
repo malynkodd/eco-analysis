@@ -152,8 +152,8 @@ def generate_excel(data: ReportInput) -> bytes:
         row_data = [
             f.name,
             f.npv,
-            f"{f.irr:.1f}%",
-            f"{f.bcr:.3f}",
+            f"{f.irr:.1f}%" if f.irr >= 0 else "N/A",
+            f"{f.bcr:.3f}" if f.bcr > 0 else "N/A",
             f"{f.simple_payback:.1f}" if f.simple_payback > 0 else "N/A",
             f"{f.discounted_payback:.0f}" if f.discounted_payback > 0 else "N/A",
             f.lcca,
@@ -287,13 +287,13 @@ def generate_excel(data: ReportInput) -> bytes:
         for cell in ws4[ws4.max_row]:
             style_header(cell, PRIMARY_HEX)
 
-        max_impact = max(r.impact_percent for r in data.sensitivity_data) or 1
+        max_impact = max(r.impact_absolute for r in data.sensitivity_data) or 1
         for i, r in enumerate(data.sensitivity_data):
-            rel = round(r.impact_percent / max_impact * 100, 1)
+            rel = round(r.impact_absolute / max_impact * 100, 1)
             ws4.append([
                 i + 1,
                 PARAM_LABELS.get(r.parameter, r.parameter),
-                round(r.impact_percent),
+                round(r.impact_absolute),
                 f"{rel}%",
             ])
             bg = LIGHT_BLUE if i == 0 else None

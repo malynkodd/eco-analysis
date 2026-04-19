@@ -50,12 +50,19 @@ def health():
 # ─── Stateless ───────────────────────────────────────────────────────────────
 
 
+def _guarded(callable_, payload):
+    try:
+        return callable_(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.post("/whatif", response_model=List[schemas.WhatIfResult])
 def whatif_analysis(
     data: schemas.WhatIfInput,
     current_user: dict = Depends(auth.get_current_user),
 ):
-    return calculator.run_whatif(data)
+    return _guarded(calculator.run_whatif, data)
 
 
 @app.post("/sensitivity", response_model=schemas.SensitivityAnalysisResult)
@@ -63,7 +70,7 @@ def sensitivity_analysis(
     data: schemas.SensitivityInput,
     current_user: dict = Depends(auth.get_current_user),
 ):
-    return calculator.run_sensitivity(data)
+    return _guarded(calculator.run_sensitivity, data)
 
 
 @app.post("/breakeven", response_model=schemas.BreakEvenResult)
@@ -71,7 +78,7 @@ def breakeven_analysis(
     data: schemas.BreakEvenInput,
     current_user: dict = Depends(auth.get_current_user),
 ):
-    return calculator.run_breakeven(data)
+    return _guarded(calculator.run_breakeven, data)
 
 
 # ─── Persisted ───────────────────────────────────────────────────────────────
@@ -110,7 +117,7 @@ def whatif_and_save(
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
-    result = calculator.run_whatif(payload)
+    result = _guarded(calculator.run_whatif, payload)
     result_payload = [r.model_dump() for r in result]
     row = _persist(
         db, project_id, "whatif", payload.model_dump(), result_payload
@@ -134,7 +141,7 @@ def sensitivity_and_save(
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
-    result = calculator.run_sensitivity(payload)
+    result = _guarded(calculator.run_sensitivity, payload)
     result_payload = result.model_dump()
     row = _persist(
         db, project_id, "sensitivity", payload.model_dump(), result_payload
@@ -158,7 +165,7 @@ def breakeven_and_save(
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
-    result = calculator.run_breakeven(payload)
+    result = _guarded(calculator.run_breakeven, payload)
     result_payload = result.model_dump()
     row = _persist(
         db, project_id, "breakeven", payload.model_dump(), result_payload

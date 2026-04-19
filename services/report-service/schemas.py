@@ -44,7 +44,8 @@ class TOPSISData(BaseModel):
 
 class SensitivityData(BaseModel):
     parameter: str
-    impact_percent: float
+    impact_absolute: float = 0.0   # absolute NPV swing (currency units)
+    impact_percent: float = 0.0    # relative swing (percent of |base NPV|)
 
 
 class ReportInput(BaseModel):

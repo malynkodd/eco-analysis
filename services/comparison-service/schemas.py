@@ -3,19 +3,12 @@ from typing import List, Optional
 
 
 class MeasureData(BaseModel):
-    """Дані одного заходу з результатами всіх методів аналізу"""
     name: str
-
-    # Фінансові показники
     npv: float
-    irr: float
-    bcr: float
-    simple_payback: float
-
-    # Екологічний показник
+    irr: Optional[float] = None
+    bcr: Optional[float] = None
+    simple_payback: Optional[float] = None
     co2_reduction: float
-
-    # Багатокритеріальні оцінки (опціональні)
     ahp_score: Optional[float] = None
     topsis_score: Optional[float] = None
 

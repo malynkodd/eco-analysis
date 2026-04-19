@@ -62,12 +62,25 @@ def build_measures(
             MeasureData(
                 name=name,
                 npv=float(fin["npv"]),
-                irr=float(fin["irr"]),
-                bcr=float(fin["bcr"]),
-                simple_payback=float(fin["simple_payback"]),
+                irr=_irr_value(fin.get("irr")),
+                bcr=fin.get("bcr"),
+                simple_payback=fin.get("simple_payback"),
                 co2_reduction=float(eco["co2_reduction_tons_per_year"]),
                 ahp_score=ahp_scores.get(name),
                 topsis_score=topsis_scores.get(name),
             )
         )
     return measures
+
+
+def _irr_value(irr) -> Optional[float]:
+    """Accept both the new IRRResult dict and the legacy bare float."""
+    if irr is None:
+        return None
+    if isinstance(irr, dict):
+        value = irr.get("value")
+        return float(value) if value is not None else None
+    try:
+        return float(irr)
+    except (TypeError, ValueError):
+        return None

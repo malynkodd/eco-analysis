@@ -1,53 +1,51 @@
-from pydantic import BaseModel
+from __future__ import annotations
+
 from typing import List, Optional
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class AHPInput(BaseModel):
-    """
-    Вхідні дані для методу AHP.
-    criteria — список назв критеріїв
-    comparison_matrix — матриця парних порівнянь (шкала Сааті 1-9)
-    alternatives — список альтернатив з оцінками по кожному критерію
-    """
-    criteria: List[str]
+    criteria: List[str] = Field(min_length=2, max_length=10)
     comparison_matrix: List[List[float]]
-    alternatives: List[dict]
+    alternatives: List[dict] = Field(min_length=1)
+    is_benefit: Optional[List[bool]] = None
+
+    @field_validator("comparison_matrix")
+    @classmethod
+    def _matrix_non_empty(cls, v: List[List[float]]) -> List[List[float]]:
+        if not v or any(len(row) != len(v) for row in v):
+            raise ValueError("Comparison matrix must be a non-empty square matrix")
+        return v
 
 
 class AHPResult(BaseModel):
     criteria: List[str]
-    weights: List[float]              # ваги критеріїв
-    consistency_ratio: float          # CR — має бути < 0.1
-    is_consistent: bool               # True якщо CR < 0.1
-    ranking: List[dict]               # рейтинг альтернатив
+    weights: List[float]
+    consistency_ratio: float
+    is_consistent: bool
+    lambda_max: float
+    ranking: List[dict]
 
 
 class TOPSISInput(BaseModel):
-    """
-    Вхідні дані для методу TOPSIS.
-    criteria — назви критеріїв
-    weights — ваги критеріїв (сума = 1)
-    is_benefit — True якщо критерій вигідний (більше = краще)
-    alternatives — матриця рішень
-    """
-    criteria: List[str]
-    weights: List[float]
-    is_benefit: List[bool]
-    alternatives: List[dict]
+    criteria: List[str] = Field(min_length=1)
+    weights: List[float] = Field(min_length=1)
+    is_benefit: List[bool] = Field(min_length=1)
+    alternatives: List[dict] = Field(min_length=1)
 
 
 class TOPSISResult(BaseModel):
     criteria: List[str]
     weights: List[float]
-    ranking: List[dict]               # рейтинг з коефіцієнтом близькості
+    ranking: List[dict]
 
 
 class CombinedInput(BaseModel):
-    """Комбінований аналіз AHP + TOPSIS"""
-    criteria: List[str]
+    criteria: List[str] = Field(min_length=2, max_length=10)
     comparison_matrix: List[List[float]]
-    is_benefit: List[bool]
-    alternatives: List[dict]
+    is_benefit: List[bool] = Field(min_length=2, max_length=10)
+    alternatives: List[dict] = Field(min_length=1)
 
 
 class CombinedResult(BaseModel):

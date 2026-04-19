@@ -14,7 +14,9 @@ import auth
 import persistence
 import schemas
 import topsis
+from ahp import AHPValidationError
 from db.base import get_db
+from topsis import TOPSISValidationError
 
 
 def _is_production() -> bool:
@@ -48,22 +50,18 @@ def health():
     return {"status": "ok", "service": "multi-criteria-service"}
 
 
-def _validate_ahp(data: schemas.AHPInput) -> None:
-    n = len(data.criteria)
-    if len(data.comparison_matrix) != n:
-        raise HTTPException(400, "Matrix size does not match number of criteria")
-    for row in data.comparison_matrix:
-        if len(row) != n:
-            raise HTTPException(400, "Comparison matrix must be square")
+def _run_ahp(data: schemas.AHPInput) -> schemas.AHPResult:
+    try:
+        return ahp.calculate_ahp(data)
+    except AHPValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-def _validate_topsis(data: schemas.TOPSISInput) -> None:
-    if abs(sum(data.weights) - 1.0) > 0.01:
-        raise HTTPException(400, "Weights must sum to 1.0")
-    if len(data.weights) != len(data.criteria):
-        raise HTTPException(
-            400, "Number of weights must match number of criteria"
-        )
+def _run_topsis(data: schemas.TOPSISInput) -> schemas.TOPSISResult:
+    try:
+        return topsis.calculate_topsis(data)
+    except TOPSISValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 # ─── Stateless ───────────────────────────────────────────────────────────────
@@ -73,16 +71,14 @@ def _validate_topsis(data: schemas.TOPSISInput) -> None:
 def run_ahp(
     data: schemas.AHPInput, current_user: dict = Depends(auth.get_current_user)
 ):
-    _validate_ahp(data)
-    return ahp.calculate_ahp(data)
+    return _run_ahp(data)
 
 
 @app.post("/topsis", response_model=schemas.TOPSISResult)
 def run_topsis(
     data: schemas.TOPSISInput, current_user: dict = Depends(auth.get_current_user)
 ):
-    _validate_topsis(data)
-    return topsis.calculate_topsis(data)
+    return _run_topsis(data)
 
 
 @app.post("/combined", response_model=schemas.CombinedResult)
@@ -94,14 +90,16 @@ def run_combined(
         criteria=data.criteria,
         comparison_matrix=data.comparison_matrix,
         alternatives=data.alternatives,
+        is_benefit=data.is_benefit,
     )
-    _validate_ahp(ahp_input)
-    ahp_result = ahp.calculate_ahp(ahp_input)
+    ahp_result = _run_ahp(ahp_input)
     if not ahp_result.is_consistent:
         raise HTTPException(
-            400,
-            f"AHP matrix is inconsistent (CR={ahp_result.consistency_ratio}). "
-            "CR must be < 0.1.",
+            status_code=422,
+            detail=(
+                f"AHP matrix is inconsistent (CR={ahp_result.consistency_ratio:.4f}); "
+                "CR must be < 0.1"
+            ),
         )
     topsis_input = schemas.TOPSISInput(
         criteria=data.criteria,
@@ -109,9 +107,7 @@ def run_combined(
         is_benefit=data.is_benefit,
         alternatives=data.alternatives,
     )
-    return schemas.CombinedResult(
-        ahp=ahp_result, topsis=topsis.calculate_topsis(topsis_input)
-    )
+    return schemas.CombinedResult(ahp=ahp_result, topsis=_run_topsis(topsis_input))
 
 
 # ─── Persisted ───────────────────────────────────────────────────────────────
@@ -140,8 +136,7 @@ def ahp_and_save(
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
-    _validate_ahp(payload)
-    result = ahp.calculate_ahp(payload)
+    result = _run_ahp(payload)
     row = persistence.save_ahp(
         db,
         project_id=project_id,
@@ -164,8 +159,7 @@ def topsis_and_save(
     db: Session = Depends(get_db),
     current_user: dict = Depends(auth.get_current_user),
 ):
-    _validate_topsis(payload)
-    result = topsis.calculate_topsis(payload)
+    result = _run_topsis(payload)
     row = persistence.save_topsis(
         db,
         project_id=project_id,

@@ -500,8 +500,8 @@ def generate_pdf(data: ReportInput) -> bytes:
         fin_data.append([
             safe(f_item.name),
             f'{f_item.npv:,.0f}',
-            f'{f_item.irr:.1f}%',
-            f'{f_item.bcr:.3f}',
+            f'{f_item.irr:.1f}%' if f_item.irr >= 0 else 'N/A',
+            f'{f_item.bcr:.3f}' if f_item.bcr > 0 else 'N/A',
             f'{f_item.simple_payback:.1f}' if f_item.simple_payback > 0 else 'N/A',
             f'{f_item.discounted_payback:.0f}' if f_item.discounted_payback > 0 else 'N/A',
             f'{f_item.lcca:,.0f}',
@@ -682,16 +682,16 @@ def generate_pdf(data: ReportInput) -> bytes:
             'lifetime_years':     'Lifetime (years)',
         }
 
-        max_impact = max(r.impact_percent for r in data.sensitivity_data) or 1
+        max_impact = max(r.impact_absolute for r in data.sensitivity_data) or 1
         sens_header = ['#', 'Parameter', 'Impact on NPV (UAH)', 'Influence']
         sens_rows = [sens_header]
         for i, r in enumerate(data.sensitivity_data):
-            filled = int(r.impact_percent / max_impact * 20)
+            filled = int(r.impact_absolute / max_impact * 20)
             bar = '█' * filled + '░' * (20 - filled)
             sens_rows.append([
                 str(i + 1),
                 PARAM_LABELS.get(r.parameter, r.parameter),
-                f'{r.impact_percent:,.0f}',
+                f'{r.impact_absolute:,.0f}',
                 bar,
             ])
         story.append(make_table(
