@@ -50,6 +50,30 @@
 | PATCH | `/api/v1/projects/{id}/status` | manager/admin |
 | PATCH | `/api/v1/projects/{id}/approve` | manager/admin |
 | PATCH | `/api/v1/projects/{id}/reject` | manager/admin |
+| POST | `/api/v1/projects/{id}/analyze/full` | auth |
+
+### POST `/api/v1/projects/{id}/analyze/full`
+
+Server-side orchestration of **every** calculator in one request. Runs
+financial portfolio, eco-impact portfolio, AHP, TOPSIS, sensitivity and
+comparison in a single round-trip.
+
+Request body (all fields optional):
+
+```json
+{
+  "discount_rate": 0.1,
+  "fuel_type": "electricity",
+  "co2_price_per_ton": 30.0,
+  "damage_coefficient": 100.0,
+  "sensitivity_variation_percent": 20.0
+}
+```
+
+Response: `FullAnalysisResponse` — keyed blob with `financial`, `eco`,
+`ahp`, `topsis`, `comparison`, `sensitivity`. AHP/TOPSIS/Sensitivity are
+optional and null on upstream failure (the core financial+eco+comparison
+chain is required).
 
 ## Фінансовий аналіз
 

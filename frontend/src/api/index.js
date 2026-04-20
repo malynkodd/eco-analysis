@@ -88,6 +88,11 @@ export const projectAPI = {
       status: 'rejected',
       manager_comment: comment || null,
     }),
+  // Server-side orchestration: runs financial + eco + AHP + TOPSIS +
+  // sensitivity + comparison in one call. Used when the client wants a
+  // single round-trip instead of the sequenced per-service calls.
+  analyzeFull: (id, options = {}) =>
+    api.post(`/api/v1/projects/${id}/analyze/full`, options),
 }
 
 // ─── Admin (user management) ───────────────────────────

@@ -8,6 +8,9 @@ Authorization model:
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
 import auth
 import models
 import schemas
@@ -17,10 +20,26 @@ from sqlalchemy.orm import Session
 
 from eco_common.api_setup import create_app
 from eco_common.envelope import paginate
+from eco_common.exceptions import CircuitBreakerOpen, RemoteServiceError
+from eco_common.internal import InternalAPI
+
+logger = logging.getLogger(__name__)
+
+# IPCC kg CO2 per fuel unit — mirrors eco-impact-service so we can convert
+# the project's stored emission_reduction (tons CO2/year) back into the
+# units the eco service expects without an extra round-trip.
+_FUEL_FACTORS = {
+    "natural_gas": 2.04,
+    "electricity": 0.37,
+    "coal": 2.86,
+    "diesel": 2.68,
+    "heating_oil": 3.15,
+}
 
 OPENAPI_TAGS = [
     {"name": "projects", "description": "Project lifecycle and approval."},
     {"name": "measures", "description": "Energy-efficiency measures attached to a project."},
+    {"name": "analysis", "description": "Orchestrated multi-service analysis."},
     {"name": "system", "description": "Health and metadata."},
 ]
 
@@ -263,3 +282,205 @@ def delete_measure(
     db.delete(measure)
     db.commit()
     return {"message": "Measure deleted"}
+
+
+# ─── Orchestrated full analysis ─────────────────────────────────────────────
+
+
+_DEFAULT_AHP_MATRIX = [
+    [1, 2, 2, 3],
+    [1 / 2, 1, 1, 2],
+    [1 / 2, 1, 1, 2],
+    [1 / 3, 1 / 2, 1 / 2, 1],
+]
+_DEFAULT_AHP_CRITERIA = ["npv", "irr", "co2", "payback"]
+_DEFAULT_AHP_IS_BENEFIT = [True, True, True, False]
+
+
+def _load_project_with_measures(db: Session, project_id: int, current_user: dict) -> models.Project:
+    q = db.query(models.Project).filter(models.Project.id == project_id)
+    if not _is_privileged(current_user["role"]):
+        q = q.filter(models.Project.owner_id == _require_user_id(current_user))
+    project = q.first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.measures:
+        raise HTTPException(status_code=422, detail="Project has no measures to analyse")
+    return project
+
+
+@app.post(
+    "/{project_id}/analyze/full",
+    response_model=schemas.FullAnalysisResponse,
+    tags=["analysis"],
+    summary="Run every calculator (financial + eco + AHP + TOPSIS + sensitivity + comparison)",
+)
+async def analyze_full(
+    project_id: int,
+    payload: schemas.FullAnalysisRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user),
+):
+    project = _load_project_with_measures(db, project_id, current_user)
+    token: str = current_user["token"]
+    fuel_factor = _FUEL_FACTORS[payload.fuel_type]
+
+    financial_body = {
+        "measures": [
+            {
+                "name": m.name,
+                "initial_investment": m.initial_investment,
+                "operational_cost": m.operational_cost,
+                "expected_savings": m.expected_savings,
+                "lifetime_years": m.lifetime_years,
+                "discount_rate": payload.discount_rate,
+            }
+            for m in project.measures
+        ],
+        "discount_rate": payload.discount_rate,
+    }
+    # Project stores emission_reduction in tons CO2/year, but the eco
+    # service expects consumption units. tons * (1000 / factor_kg_per_unit)
+    # recovers the original fuel-unit quantity.
+    eco_body = {
+        "measures": [
+            {
+                "name": m.name,
+                "fuel_type": payload.fuel_type,
+                "annual_consumption_reduction": (
+                    m.emission_reduction * (1000.0 / fuel_factor) if fuel_factor > 0 else 0.0
+                ),
+                "co2_price_per_ton": payload.co2_price_per_ton,
+                "damage_coefficient": payload.damage_coefficient,
+            }
+            for m in project.measures
+        ],
+    }
+
+    api = InternalAPI()
+
+    try:
+        financial_res, eco_res = await asyncio.gather(
+            api.post_financial_portfolio(financial_body, token),
+            api.post_eco_portfolio(eco_body, token),
+        )
+    except (CircuitBreakerOpen, RemoteServiceError) as exc:
+        logger.warning("Full analysis upstream failure: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Upstream error: {exc}") from exc
+
+    alternatives = []
+    for i, m in enumerate(project.measures):
+        f_row = financial_res["results"][i]
+        e_row = eco_res["results"][i]
+        irr_val = (
+            f_row.get("irr", {}).get("value")
+            if isinstance(f_row.get("irr"), dict)
+            else f_row.get("irr")
+        )
+        simple_payback = f_row.get("simple_payback")
+        alternatives.append(
+            {
+                "name": m.name,
+                "npv": f_row.get("npv", 0.0),
+                "irr": irr_val if irr_val is not None else 0.0,
+                "co2": e_row.get("co2_reduction_tons_per_year", 0.0),
+                "payback": simple_payback if simple_payback and simple_payback > 0 else 999,
+            }
+        )
+
+    ahp_res: dict | None = None
+    topsis_res: dict | None = None
+    try:
+        ahp_res = await api.post_ahp(
+            {
+                "criteria": _DEFAULT_AHP_CRITERIA,
+                "comparison_matrix": _DEFAULT_AHP_MATRIX,
+                "alternatives": alternatives,
+                "is_benefit": _DEFAULT_AHP_IS_BENEFIT,
+            },
+            token,
+        )
+        topsis_res = await api.post_topsis(
+            {
+                "criteria": _DEFAULT_AHP_CRITERIA,
+                "weights": ahp_res["weights"],
+                "is_benefit": _DEFAULT_AHP_IS_BENEFIT,
+                "alternatives": alternatives,
+            },
+            token,
+        )
+    except (CircuitBreakerOpen, RemoteServiceError) as exc:
+        logger.warning("AHP/TOPSIS optional step failed: %s", exc)
+
+    ahp_score_by_name = {r["name"]: r["score"] for r in ahp_res["ranking"]} if ahp_res else {}
+    topsis_score_by_name = (
+        {r["name"]: r["closeness_coefficient"] for r in topsis_res["ranking"]} if topsis_res else {}
+    )
+
+    comparison_measures = []
+    for i, m in enumerate(project.measures):
+        f_row = financial_res["results"][i]
+        e_row = eco_res["results"][i]
+        irr_val = (
+            f_row.get("irr", {}).get("value")
+            if isinstance(f_row.get("irr"), dict)
+            else f_row.get("irr")
+        )
+        comparison_measures.append(
+            {
+                "name": m.name,
+                "npv": f_row.get("npv", 0.0),
+                "irr": irr_val,
+                "bcr": f_row.get("bcr"),
+                "simple_payback": f_row.get("simple_payback"),
+                "co2_reduction": e_row.get("co2_reduction_tons_per_year", 0.0),
+                "ahp_score": ahp_score_by_name.get(m.name),
+                "topsis_score": topsis_score_by_name.get(m.name),
+            }
+        )
+
+    try:
+        comparison_res = await api.post_comparison({"measures": comparison_measures}, token)
+    except (CircuitBreakerOpen, RemoteServiceError) as exc:
+        logger.warning("Full analysis comparison failure: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Upstream error: {exc}") from exc
+
+    sensitivity_res: dict | None = None
+    try:
+        first = project.measures[0]
+        sensitivity_res = await api.post_sensitivity(
+            {
+                "base": {
+                    "name": first.name,
+                    "initial_investment": first.initial_investment,
+                    "operational_cost": first.operational_cost,
+                    "expected_savings": first.expected_savings,
+                    "lifetime_years": first.lifetime_years,
+                    "discount_rate": payload.discount_rate,
+                },
+                "variation_percent": payload.sensitivity_variation_percent,
+                "steps": 3,
+            },
+            token,
+        )
+    except (CircuitBreakerOpen, RemoteServiceError) as exc:
+        logger.warning("Sensitivity optional step failed: %s", exc)
+
+    logger.info(
+        "Full analysis for project %s: %d measures, best=%s",
+        project_id,
+        len(project.measures),
+        comparison_res.get("best_consensus"),
+    )
+
+    return schemas.FullAnalysisResponse(
+        project_id=project.id,
+        project_name=project.name,
+        discount_rate=payload.discount_rate,
+        financial=financial_res,
+        eco=eco_res,
+        ahp=ahp_res,
+        topsis=topsis_res,
+        comparison=comparison_res,
+        sensitivity=sensitivity_res,
+    )
