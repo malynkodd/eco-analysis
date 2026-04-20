@@ -101,8 +101,14 @@ def downgrade() -> None:
     )
     op.alter_column("projects", "owner_username", nullable=False)
 
-    op.drop_index("ix_projects_owner_id", table_name="projects")
-    op.drop_constraint(
-        "fk_projects_owner_id_users", "projects", type_="foreignkey"
-    )
+    insp = sa.inspect(bind)
+
+    existing_indexes = {ix["name"] for ix in insp.get_indexes("projects")}
+    if "ix_projects_owner_id" in existing_indexes:
+        op.drop_index("ix_projects_owner_id", table_name="projects")
+
+    for fk in insp.get_foreign_keys("projects"):
+        if fk.get("constrained_columns") == ["owner_id"] and fk.get("name"):
+            op.drop_constraint(fk["name"], "projects", type_="foreignkey")
+
     op.drop_column("projects", "owner_id")
