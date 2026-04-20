@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { scenarioAPI } from '../api'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -86,7 +86,7 @@ export default function ScenarioPage() {
       ]
       const res = await scenarioAPI.whatif({ base, changes })
       setWhatifResults(res.data)
-    } catch (e) {
+    } catch {
       setError('Помилка аналізу')
     } finally {
       setLoading(false)
