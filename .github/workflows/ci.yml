@@ -1,0 +1,168 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  lint:
+    name: Lint (ruff) + types (pyright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install tool deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff==0.4.10 pyright==1.1.370
+          pip install \
+            fastapi==0.111.0 pydantic[email]==2.7.1 sqlalchemy==2.0.30 \
+            numpy==1.26.4 scipy==1.13.0 httpx==0.27.0 \
+            structlog==24.1.0 prometheus-client==0.20.0 \
+            python-jose[cryptography]==3.3.0 \
+            reportlab==4.1.0 matplotlib==3.9.0 openpyxl==3.1.2 \
+            alembic==1.13.1 passlib==1.7.4 bcrypt==3.2.2 \
+            python-multipart==0.0.9 psycopg2-binary==2.9.9
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Pyright
+        run: pyright || true  # warnings-only — don't block CI on Phase-7 bootstrap
+        continue-on-error: true
+
+  test:
+    name: Unit tests + coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest==8.2.2 pytest-cov==5.0.0
+          pip install \
+            fastapi==0.111.0 pydantic[email]==2.7.1 sqlalchemy==2.0.30 \
+            numpy==1.26.4 scipy==1.13.0 httpx==0.27.0 \
+            structlog==24.1.0 prometheus-client==0.20.0 \
+            python-jose[cryptography]==3.3.0 \
+            alembic==1.13.1 passlib==1.7.4 bcrypt==3.2.2 \
+            python-multipart==0.0.9
+
+      - name: Run pytest with coverage
+        run: |
+          pytest tests/unit \
+            --cov=eco_common \
+            --cov=services/multi-criteria-service \
+            --cov=services/financial-service \
+            --cov=services/scenario-service \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --junitxml=junit.xml
+
+      - name: Upload coverage artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+      - name: Upload JUnit artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-xml
+          path: junit.xml
+
+  build:
+    name: Docker build (all services)
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - auth-service
+          - project-service
+          - financial-service
+          - eco-impact-service
+          - multi-criteria-service
+          - scenario-service
+          - comparison-service
+          - report-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.service }} image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          push: false
+          load: true
+          tags: eco/${{ matrix.service }}:ci
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+
+  migrations:
+    name: Alembic migration dry-run
+    runs-on: ubuntu-latest
+    needs: [test]
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: ecouser
+          POSTGRES_PASSWORD: ecopass
+          POSTGRES_DB: ecodb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ecouser -d ecodb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg2://ecouser:ecopass@localhost:5432/ecodb
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Alembic + SQLAlchemy
+        run: |
+          python -m pip install --upgrade pip
+          pip install alembic==1.13.1 sqlalchemy==2.0.30 psycopg2-binary==2.9.9
+
+      - name: Upgrade to head
+        run: alembic upgrade head
+
+      - name: Round-trip downgrade → upgrade
+        run: |
+          alembic downgrade base
+          alembic upgrade head

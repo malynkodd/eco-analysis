@@ -7,7 +7,8 @@ import {
 } from 'recharts'
 import {
   projectAPI, financialAPI, ecoAPI,
-  comparisonAPI, reportAPI, scenarioAPI
+  comparisonAPI, reportAPI, scenarioAPI,
+  multiCriteriaAPI
 } from '../api'
 import { useAuth } from '../context/AuthContext'
 import TornadoMini from '../components/TornadoMini'
@@ -68,13 +69,68 @@ export default function AnalysisPage() {
         })),
       })
 
+      // ─── Multi-criteria: AHP + TOPSIS over (NPV, IRR, CO2, Payback) ────
+      // Default Saaty matrix reflects the TS priority order; criteria are
+      // intentionally equal-weighted on the is_benefit side except payback
+      // (cost) which TOPSIS flips internally.
+      const criteria = ['npv', 'irr', 'co2', 'payback']
+      const isBenefit = [true, true, true, false]
+      const comparisonMatrix = [
+        [1,   2,   2,   3  ],
+        [1/2, 1,   1,   2  ],
+        [1/2, 1,   1,   2  ],
+        [1/3, 1/2, 1/2, 1  ],
+      ]
+      const alternatives = financialRes.data.results.map((f, i) => ({
+        name: f.name,
+        npv: f.npv,
+        irr: f.irr?.value ?? 0,
+        co2: ecoRes.data.results[i]?.co2_reduction_tons_per_year || 0,
+        payback: f.simple_payback != null && f.simple_payback > 0 ? f.simple_payback : 999,
+      }))
+
+      let ahpData = null
+      let topsisData = null
+      try {
+        const ahpRes = await multiCriteriaAPI.ahp({
+          criteria,
+          comparison_matrix: comparisonMatrix,
+          alternatives,
+          is_benefit: isBenefit,
+        })
+        ahpData = ahpRes.data
+
+        const topsisRes = await multiCriteriaAPI.topsis({
+          criteria,
+          weights: ahpData.weights,
+          is_benefit: isBenefit,
+          alternatives,
+        })
+        topsisData = topsisRes.data
+      } catch {
+        // Degrade gracefully: comparison still works without AHP/TOPSIS.
+      }
+
+      const ahpScoreByName = ahpData
+        ? Object.fromEntries(ahpData.ranking.map(r => [r.name, r.score]))
+        : {}
+      const topsisScoreByName = topsisData
+        ? Object.fromEntries(
+            topsisData.ranking.map(r => [r.name, r.closeness_coefficient])
+          )
+        : {}
+
       const comparisonData = financialRes.data.results.map((f, i) => ({
         name: f.name,
         npv: f.npv,
-        irr: f.irr,
-        bcr: f.bcr,
-        simple_payback: f.simple_payback,
+        // financial-service returns irr as {value, converged, iterations};
+        // the comparison-service expects a plain Optional[float] percent.
+        irr: f.irr?.value ?? null,
+        bcr: f.bcr ?? null,
+        simple_payback: f.simple_payback ?? null,
         co2_reduction: ecoRes.data.results[i]?.co2_reduction_tons_per_year || 0,
+        ahp_score: ahpScoreByName[f.name] ?? null,
+        topsis_score: topsisScoreByName[f.name] ?? null,
       }))
 
       const compRes = await comparisonAPI.compare({ measures: comparisonData })
@@ -83,6 +139,8 @@ export default function AnalysisPage() {
         financial: financialRes.data.results,
         eco: ecoRes.data,
         comparison: compRes.data,
+        ahp: ahpData,
+        topsis: topsisData,
       })
       setActiveTab('financial')
     } catch (err) {
@@ -110,9 +168,32 @@ export default function AnalysisPage() {
       })
       sensitivityData = sensRes.data.results.map(r => ({
         parameter: r.parameter,
+        impact_absolute: r.impact_absolute ?? 0,
         impact_percent: r.impact_percent,
       }))
-    } catch {}
+    } catch {
+      // Sensitivity is optional for the report — skip on failure.
+    }
+
+    const ahpReportData = results.ahp && {
+      criteria: results.ahp.criteria,
+      weights: results.ahp.weights,
+      consistency_ratio: results.ahp.consistency_ratio,
+      ranking: results.ahp.ranking.map(r => ({
+        name: r.name,
+        score: r.score,
+        rank: r.rank,
+      })),
+    }
+
+    const topsisReportData = results.topsis && {
+      criteria: results.topsis.criteria,
+      ranking: results.topsis.ranking.map(r => ({
+        name: r.name,
+        closeness_coefficient: r.closeness_coefficient,
+        rank: r.rank,
+      })),
+    }
 
     return {
       project_name: project.name,
@@ -121,10 +202,12 @@ export default function AnalysisPage() {
       financial_results: results.financial.map(f => ({
         name: f.name,
         npv: f.npv,
-        irr: f.irr,
-        bcr: f.bcr,
-        simple_payback: f.simple_payback,
-        discounted_payback: f.discounted_payback,
+        // Report service schema wants plain floats; coerce IRRResult and
+        // null-valued optionals so the PDF/Excel renderer has numbers.
+        irr: f.irr?.value ?? 0,
+        bcr: f.bcr ?? 0,
+        simple_payback: f.simple_payback ?? 0,
+        discounted_payback: f.discounted_payback ?? 0,
         lcca: f.lcca,
         yearly_details: f.yearly_details || null,
       })),
@@ -148,6 +231,8 @@ export default function AnalysisPage() {
         `${results.comparison.best_consensus} is recommended. ` +
         `Financial leader: ${results.comparison.best_financial}. ` +
         `Ecological leader: ${results.comparison.best_ecological}.`,
+      ahp_data: ahpReportData || null,
+      topsis_data: topsisReportData || null,
       sensitivity_data: sensitivityData,
     }
   }
@@ -335,27 +420,37 @@ export default function AnalysisPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {results.financial.map(f => (
+                    {results.financial.map(f => {
+                      const irr = f.irr?.value ?? null
+                      return (
                       <tr key={f.name}>
                         <td><strong>{f.name}</strong></td>
                         <td style={{ color: f.npv > 0 ? '#065f46' : '#991b1b', fontWeight: 600 }}>
                           {f.npv.toLocaleString()} ₴
                         </td>
                         <td>
-                          <span className={`badge ${f.irr > discountRate * 100 ? 'badge-green' : 'badge-red'}`}>
-                            {f.irr}%
-                          </span>
+                          {irr == null ? (
+                            <span className="badge badge-gray">N/A</span>
+                          ) : (
+                            <span className={`badge ${irr > discountRate * 100 ? 'badge-green' : 'badge-red'}`}>
+                              {irr}%
+                            </span>
+                          )}
                         </td>
                         <td>
-                          <span className={`badge ${f.bcr > 1 ? 'badge-green' : 'badge-red'}`}>
-                            {f.bcr}
-                          </span>
+                          {f.bcr == null ? (
+                            <span className="badge badge-gray">N/A</span>
+                          ) : (
+                            <span className={`badge ${f.bcr > 1 ? 'badge-green' : 'badge-red'}`}>
+                              {f.bcr}
+                            </span>
+                          )}
                         </td>
-                        <td>{f.simple_payback > 0 ? f.simple_payback + ' р.' : 'N/A'}</td>
-                        <td>{f.discounted_payback > 0 ? f.discounted_payback + ' р.' : 'N/A'}</td>
+                        <td>{f.simple_payback != null && f.simple_payback > 0 ? f.simple_payback + ' р.' : 'N/A'}</td>
+                        <td>{f.discounted_payback != null && f.discounted_payback > 0 ? f.discounted_payback + ' р.' : 'N/A'}</td>
                         <td>{f.lcca.toLocaleString()} ₴</td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
@@ -524,7 +619,7 @@ export default function AnalysisPage() {
                     <span className="card-title">IRR (%) по заходах</span>
                   </div>
                   <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={results.financial.map(f => ({ name: f.name, IRR: f.irr }))}>
+                    <BarChart data={results.financial.map(f => ({ name: f.name, IRR: f.irr?.value ?? 0 }))}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                       <YAxis />
@@ -599,10 +694,10 @@ export default function AnalysisPage() {
                 <ResponsiveContainer width="100%" height={320}>
                   <RadarChart data={[
                     { metric: 'NPV', ...Object.fromEntries(results.financial.map(f => [f.name, Math.max(0, f.npv / 1000)])) },
-                    { metric: 'IRR', ...Object.fromEntries(results.financial.map(f => [f.name, Math.max(0, f.irr)])) },
-                    { metric: 'BCR×10', ...Object.fromEntries(results.financial.map(f => [f.name, Math.max(0, f.bcr * 10)])) },
+                    { metric: 'IRR', ...Object.fromEntries(results.financial.map(f => [f.name, Math.max(0, f.irr?.value ?? 0)])) },
+                    { metric: 'BCR×10', ...Object.fromEntries(results.financial.map(f => [f.name, Math.max(0, (f.bcr ?? 0) * 10)])) },
                     { metric: 'CO₂', ...Object.fromEntries(results.eco.results.map(e => [e.name, e.co2_reduction_tons_per_year])) },
-                    { metric: 'Payback inv', ...Object.fromEntries(results.financial.map(f => [f.name, Math.max(0, 20 - f.simple_payback)])) },
+                    { metric: 'Payback inv', ...Object.fromEntries(results.financial.map(f => [f.name, Math.max(0, 20 - (f.simple_payback ?? 20))])) },
                   ]}>
                     <PolarGrid />
                     <PolarAngleAxis dataKey="metric" />

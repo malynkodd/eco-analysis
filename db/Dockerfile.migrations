@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+
+COPY db/requirements.txt /app/db/requirements.txt
+RUN pip install --no-cache-dir -r /app/db/requirements.txt
+
+COPY alembic.ini /app/alembic.ini
+COPY alembic /app/alembic
+COPY db /app/db
+
+RUN useradd --uid 1001 --create-home --shell /usr/sbin/nologin app \
+    && chown -R app:app /app
+USER 1001
+
+CMD ["alembic", "upgrade", "head"]

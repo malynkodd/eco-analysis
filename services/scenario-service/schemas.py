@@ -1,27 +1,46 @@
-from pydantic import BaseModel
-from typing import List, Dict
+from __future__ import annotations
+
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class BaseScenario(BaseModel):
-    """Базові параметри заходу для сценарного моделювання"""
-    name: str
-    initial_investment: float
-    operational_cost: float
-    expected_savings: float
-    lifetime_years: int
-    discount_rate: float = 0.1
+    name: str = Field(min_length=1, max_length=200)
+    initial_investment: float = Field(ge=0)
+    operational_cost: float = Field(ge=0)
+    expected_savings: float = Field(ge=0)
+    lifetime_years: int = Field(ge=1, le=100)
+    discount_rate: float = Field(default=0.1, gt=-1.0, le=10.0)
 
 
-# ─── What-if аналіз ───────────────────────────────────
+# ─── What-if ────────────────────────────────────────────────
+
+
+_WHATIF_PARAMS = {
+    "initial_investment",
+    "operational_cost",
+    "expected_savings",
+    "lifetime_years",
+    "discount_rate",
+}
+
 
 class WhatIfParameter(BaseModel):
-    parameter: str        # назва параметру
-    new_value: float      # нове значення
+    parameter: str
+    new_value: float
+
+    @field_validator("parameter")
+    @classmethod
+    def _known_parameter(cls, v: str) -> str:
+        if v not in _WHATIF_PARAMS:
+            raise ValueError(f"Unknown parameter '{v}'")
+        return v
 
 
 class WhatIfInput(BaseModel):
     base: BaseScenario
-    changes: List[WhatIfParameter]
+    changes: List[WhatIfParameter] = Field(min_length=1)
 
 
 class WhatIfResult(BaseModel):
@@ -35,12 +54,13 @@ class WhatIfResult(BaseModel):
     npv_change_percent: float
 
 
-# ─── Sensitivity Analysis ─────────────────────────────
+# ─── Sensitivity ────────────────────────────────────────────
+
 
 class SensitivityInput(BaseModel):
     base: BaseScenario
-    variation_percent: float = 20.0   # варіація ±20%
-    steps: int = 5                    # кількість кроків
+    variation_percent: float = Field(default=20.0, gt=0.0, le=100.0)
+    steps: int = Field(default=5, ge=1, le=50)
 
 
 class SensitivityPoint(BaseModel):
@@ -53,16 +73,18 @@ class SensitivityResult(BaseModel):
     parameter: str
     base_value: float
     base_npv: float
-    impact_percent: float             # вплив на NPV (для tornado chart)
+    impact_absolute: float
+    impact_percent: float
     points: List[SensitivityPoint]
 
 
 class SensitivityAnalysisResult(BaseModel):
     base_npv: float
-    results: List[SensitivityResult]  # відсортовано за впливом (tornado)
+    results: List[SensitivityResult]
 
 
-# ─── Break-even аналіз ────────────────────────────────
+# ─── Break-even ─────────────────────────────────────────────
+
 
 class BreakEvenInput(BaseModel):
     base: BaseScenario
@@ -70,7 +92,7 @@ class BreakEvenInput(BaseModel):
 
 class BreakEvenResult(BaseModel):
     base_npv: float
-    breakeven_savings: float          # мін. економія при NPV=0
-    breakeven_investment: float       # макс. інвестиція при NPV=0
-    breakeven_discount_rate: float    # макс. ставка при NPV=0
-    breakeven_years: float            # мін. термін при NPV=0
+    breakeven_savings: Optional[float] = None
+    breakeven_investment: Optional[float] = None
+    breakeven_discount_rate: Optional[float] = None
+    breakeven_years: Optional[float] = None

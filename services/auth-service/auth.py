@@ -1,64 +1,101 @@
+"""JWT signing (RS256) and password hashing for auth-service.
+
+Auth-service is the ONLY component that holds the private key. All other
+services verify with the public key (see services/<svc>/auth.py).
+"""
+
 import os
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+import uuid
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import models
+from database import get_db
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from database import get_db
-import models
 
-SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 година (стандарт безпеки)
 
-# Налаштування хешування паролів через bcrypt
+def _require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Required environment variable {name} is not set")
+    return value
+
+
+def _read_pem(path_env: str) -> str:
+    path = Path(_require_env(path_env))
+    if not path.is_file():
+        raise RuntimeError(f"Key file does not exist: {path} (from {path_env})")
+    return path.read_text()
+
+
+JWT_PRIVATE_KEY = _read_pem("JWT_PRIVATE_KEY_PATH")
+JWT_PUBLIC_KEY = _read_pem("JWT_PUBLIC_KEY_PATH")
+JWT_ALGORITHM = "RS256"
+JWT_ISSUER = _require_env("JWT_ISSUER")
+JWT_AUDIENCE = _require_env("JWT_AUDIENCE")
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 def hash_password(password: str) -> str:
-    """Хешуємо пароль перед збереженням в БД"""
     return pwd_context.hash(password)
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Порівнюємо введений пароль з хешем в БД"""
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(data: dict) -> str:
-    """Створюємо JWT токен"""
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+def create_access_token(*, subject: str, role: str, user_id: int) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": subject,
+        "role": role,
+        "uid": user_id,
+        "iss": JWT_ISSUER,
+        "aud": JWT_AUDIENCE,
+        "iat": int(now.timestamp()),
+        "nbf": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=JWT_EXPIRE_MINUTES)).timestamp()),
+        "jti": uuid.uuid4().hex,
+    }
+    return jwt.encode(payload, JWT_PRIVATE_KEY, algorithm=JWT_ALGORITHM)
+
+
+def decode_token(token: str) -> dict:
+    return jwt.decode(
+        token,
+        JWT_PUBLIC_KEY,
+        algorithms=[JWT_ALGORITHM],
+        audience=JWT_AUDIENCE,
+        issuer=JWT_ISSUER,
+    )
 
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> models.User:
-    """Перевіряємо токен і повертаємо поточного користувача"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Невірний токен або токен застарів",
+        detail="Invalid or expired token",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
+        payload = decode_token(token)
     except JWTError:
         raise credentials_exception
 
-    user = db.query(models.User).filter(
-        models.User.username == username
-    ).first()
-
-    if user is None:
+    username = payload.get("sub")
+    if not username:
         raise credentials_exception
 
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if user is None:
+        raise credentials_exception
     return user

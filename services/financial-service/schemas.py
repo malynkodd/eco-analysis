@@ -1,44 +1,59 @@
-from pydantic import BaseModel
-from typing import List
+from __future__ import annotations
+
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class FinancialInput(BaseModel):
-    """Вхідні дані для фінансового аналізу одного заходу"""
-    name: str
-    initial_investment: float      # початкові інвестиції (грн)
-    operational_cost: float        # операційні витрати на рік (грн)
-    expected_savings: float        # очікувана економія на рік (грн)
-    lifetime_years: int            # термін експлуатації (років)
-    discount_rate: float = 0.1     # ставка дисконтування (10% за замовч.)
+    name: str = Field(min_length=1, max_length=200)
+    initial_investment: float = Field(ge=0)
+    operational_cost: float = Field(ge=0)
+    expected_savings: float = Field(ge=0)
+    lifetime_years: int = Field(ge=1, le=100)
+    discount_rate: float = Field(default=0.1, gt=-1.0, le=10.0)
+
+
+class IRRResult(BaseModel):
+    value: Optional[float] = Field(
+        default=None,
+        description="IRR in percent. None when no real root exists in [-99%, +1000%].",
+    )
+    converged: bool = False
+    iterations: int = 0
 
 
 class YearlyDetail(BaseModel):
-    """Деталізація по кожному року"""
-    year: int
-    cash_flow: float               # грошовий потік
-    discounted_cash_flow: float    # дисконтований грошовий потік
-    cumulative_cash_flow: float    # кумулятивний грошовий потік
-    cumulative_discounted: float   # кумулятивний дисконтований
+    year: int = Field(ge=1)
+    cash_flow: float
+    discounted_cash_flow: float
+    cumulative_cash_flow: float
+    cumulative_discounted: float
 
 
 class FinancialResult(BaseModel):
-    """Результати фінансового аналізу"""
     name: str
-    npv: float                     # чиста приведена вартість
-    irr: float                     # внутрішня норма дохідності
-    bcr: float                     # benefit-cost ratio
-    simple_payback: float          # простий термін окупності (років)
-    discounted_payback: float      # дисконтований термін окупності (років)
-    lcca: float                    # вартість життєвого циклу
+    npv: float
+    irr: IRRResult
+    bcr: Optional[float] = None
+    simple_payback: Optional[float] = None
+    discounted_payback: Optional[float] = None
+    lcca: float
     yearly_details: List[YearlyDetail]
 
 
 class PortfolioInput(BaseModel):
-    """Портфель заходів для порівняльного аналізу"""
-    measures: List[FinancialInput]
-    discount_rate: float = 0.1
+    measures: List[FinancialInput] = Field(min_length=1)
+    discount_rate: float = Field(default=0.1, gt=-1.0, le=10.0)
+
+    @field_validator("measures")
+    @classmethod
+    def _unique_names(cls, v: List[FinancialInput]) -> List[FinancialInput]:
+        names = [m.name for m in v]
+        if len(set(names)) != len(names):
+            raise ValueError("Measure names must be unique within a portfolio")
+        return v
 
 
 class PortfolioResult(BaseModel):
-    """Результати аналізу портфелю"""
     results: List[FinancialResult]

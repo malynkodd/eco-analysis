@@ -17,14 +17,20 @@ export default function AdminPage() {
   const [saving, setSaving] = useState({})
   const [success, setSuccess] = useState({})
 
-  if (user?.role !== 'admin') return <Navigate to="/" />
+  const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
+    if (!isAdmin) {
+      setLoading(false)
+      return
+    }
     adminAPI.getUsers()
       .then(res => setUsers(res.data))
       .catch(() => setError('Не вдалося завантажити список користувачів'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [isAdmin])
+
+  if (!isAdmin) return <Navigate to="/" />
 
   const handleRoleChange = async (userId, newRole) => {
     setSaving(prev => ({ ...prev, [userId]: true }))
