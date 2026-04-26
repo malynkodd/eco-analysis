@@ -12,6 +12,8 @@ class FinancialInput(BaseModel):
     expected_savings: float = Field(ge=0)
     lifetime_years: int = Field(ge=1, le=100)
     discount_rate: float = Field(default=0.1, gt=-1.0, le=10.0)
+    maintenance_cost: float = Field(default=0.0, ge=0)
+    residual_value: float = Field(default=0.0, ge=0)
 
 
 class IRRResult(BaseModel):

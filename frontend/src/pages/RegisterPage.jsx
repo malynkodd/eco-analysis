@@ -19,8 +19,8 @@ export default function RegisterPage() {
       e.email = 'Невірний формат email'
     if (form.username.length < 3)
       e.username = 'Логін мінімум 3 символи'
-    if (form.password.length < 6)
-      e.password = 'Пароль мінімум 6 символів'
+    if (form.password.length < 8)
+      e.password = 'Пароль мінімум 8 символів'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -136,7 +136,7 @@ export default function RegisterPage() {
               <input
                 type="password"
                 name="password"
-                placeholder="Мінімум 6 символів"
+                placeholder="Мінімум 8 символів"
                 value={form.password}
                 onChange={handleChange}
                 style={errors.password ? { borderColor: '#e17055' } : {}}

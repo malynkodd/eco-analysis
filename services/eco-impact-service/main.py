@@ -86,6 +86,18 @@ def get_emission_factors(current_user: dict = Depends(auth.get_current_user)):
     return {fuel.value: factor for fuel, factor in calculator.EMISSION_FACTORS.items()}
 
 
+@app.get(
+    "/damage-coefficients",
+    tags=["eco"],
+    summary="Return regulatory damage coefficients (UA & EU) per pollutant",
+)
+def get_damage_coefficients(current_user: dict = Depends(auth.get_current_user)):
+    return {
+        method: {pollutant.value: coef for pollutant, coef in table.items()}
+        for method, table in calculator.REGULATORY_DAMAGE_COEFF_UAH_PER_TON.items()
+    }
+
+
 @app.post(
     "/projects/{project_id}/analyze",
     response_model=SavedEcoResult,
