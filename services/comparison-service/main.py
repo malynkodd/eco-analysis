@@ -61,6 +61,19 @@ def compare(
 
 
 @app.post(
+    "/compare/portfolio",
+    response_model=schemas.ComparisonResult,
+    tags=["comparison"],
+    summary="Alias of POST /compare — compare an explicit portfolio of measures",
+)
+def compare_portfolio(
+    data: schemas.ComparisonInput,
+    current_user: dict = Depends(auth.get_current_user),
+):
+    return calculator.compare_measures(data.measures)
+
+
+@app.post(
     "/projects/{project_id}/compare",
     response_model=SavedComparisonResult,
     tags=["projects"],

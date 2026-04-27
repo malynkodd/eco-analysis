@@ -133,6 +133,54 @@ def get_project(
     return project
 
 
+@app.patch(
+    "/{project_id}",
+    response_model=schemas.ProjectResponse,
+    tags=["projects"],
+    summary="Update a project's name or description",
+)
+def update_project(
+    project_id: int,
+    update_data: schemas.ProjectUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user),
+):
+    if current_user["role"] == "manager":
+        raise HTTPException(status_code=403, detail="Managers cannot edit projects")
+    q = db.query(models.Project).filter(models.Project.id == project_id)
+    if current_user["role"] != "admin":
+        q = q.filter(models.Project.owner_id == _require_user_id(current_user))
+    project = q.first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    payload = update_data.model_dump(exclude_unset=True)
+    for field, value in payload.items():
+        setattr(project, field, value)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@app.get(
+    "/{project_id}/alternatives",
+    response_model=list[schemas.MeasureResponse],
+    tags=["measures"],
+    summary="List a project's portfolio of alternatives (measures)",
+)
+def list_alternatives(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user),
+):
+    q = db.query(models.Project).filter(models.Project.id == project_id)
+    if not _is_privileged(current_user["role"]):
+        q = q.filter(models.Project.owner_id == _require_user_id(current_user))
+    project = q.first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return list(project.measures)
+
+
 @app.delete("/{project_id}", tags=["projects"], summary="Delete a project")
 def delete_project(
     project_id: int,
@@ -251,6 +299,39 @@ def add_measure(
         **measure_data.model_dump(),
     )
     db.add(measure)
+    db.commit()
+    db.refresh(measure)
+    return measure
+
+
+@app.patch(
+    "/{project_id}/measures/{measure_id}",
+    response_model=schemas.MeasureResponse,
+    tags=["measures"],
+    summary="Update a measure's parameters",
+)
+def update_measure(
+    project_id: int,
+    measure_id: int,
+    update_data: schemas.MeasureUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user),
+):
+    if current_user["role"] == "manager":
+        raise HTTPException(status_code=403, detail="Managers cannot edit measures")
+    q = (
+        db.query(models.Measure)
+        .filter(models.Measure.id == measure_id)
+        .filter(models.Measure.project_id == project_id)
+    )
+    if current_user["role"] != "admin":
+        q = q.join(models.Project).filter(models.Project.owner_id == _require_user_id(current_user))
+    measure = q.first()
+    if not measure:
+        raise HTTPException(status_code=404, detail="Measure not found")
+    payload = update_data.model_dump(exclude_unset=True)
+    for field, value in payload.items():
+        setattr(measure, field, value)
     db.commit()
     db.refresh(measure)
     return measure

@@ -147,12 +147,17 @@ def calculate_lcca(
     operational_cost: float,
     lifetime_years: int,
     discount_rate: float,
+    maintenance_cost: float = 0.0,
+    residual_value: float = 0.0,
 ) -> float:
+    """Total cost of ownership: initial + PV(opex) + PV(maintenance) - PV(residual)."""
     if discount_rate <= -1.0:
         raise ValueError("Discount rate <= -1 produces division by zero")
     factor = 1.0 + discount_rate
     pv_opex = sum(operational_cost / (factor**t) for t in range(1, lifetime_years + 1))
-    return round(initial_investment + pv_opex, 2)
+    pv_maintenance = sum(maintenance_cost / (factor**t) for t in range(1, lifetime_years + 1))
+    pv_residual = residual_value / (factor**lifetime_years) if lifetime_years > 0 else 0.0
+    return round(initial_investment + pv_opex + pv_maintenance - pv_residual, 2)
 
 
 def build_yearly_details(
@@ -202,6 +207,8 @@ def analyze_measure(data: FinancialInput) -> FinancialResult:
         data.operational_cost,
         data.lifetime_years,
         data.discount_rate,
+        maintenance_cost=data.maintenance_cost,
+        residual_value=data.residual_value,
     )
     yearly = build_yearly_details(
         annual_net_cf,

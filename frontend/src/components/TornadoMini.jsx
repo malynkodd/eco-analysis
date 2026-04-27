@@ -81,7 +81,7 @@ export default function TornadoMini({ measure, discountRate }) {
           {chartData.map((_, i) => (
             <Cell
               key={i}
-              fill={['#0f4c81','#1a6baf','#6c5ce7','#00b894','#e17055'][i % 5]}
+              fill={['#1d4ed8','#3b82f6','#7c3aed','#0ea674','#dc2626'][i % 5]}
             />
           ))}
         </Bar>

@@ -274,7 +274,7 @@ export default function AnalysisPage() {
     { key: 'charts',     label: '📈 Графіки' },
   ]
 
-  const COLORS = ['#0f4c81', '#00b894', '#6c5ce7', '#e17055', '#fdcb6e']
+  const COLORS = ['#1d4ed8', '#0ea674', '#7c3aed', '#dc2626', '#d97706']
 
   return (
     <div className="container" style={{ paddingTop: '32px', paddingBottom: '40px' }}>
@@ -291,7 +291,7 @@ export default function AnalysisPage() {
         display: 'flex', justifyContent: 'space-between',
         alignItems: 'center', marginBottom: '24px',
       }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f4c81' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1d4ed8' }}>
           📊 Аналіз: {project.name}
         </h1>
 
@@ -327,7 +327,7 @@ export default function AnalysisPage() {
                 onChange={e => setDiscountRate(parseFloat(e.target.value))}
                 style={{ width: '160px', marginBottom: 0 }}
               />
-              <strong style={{ color: '#0f4c81', fontSize: '20px' }}>
+              <strong style={{ color: '#1d4ed8', fontSize: '20px' }}>
                 {(discountRate * 100).toFixed(0)}%
               </strong>
             </div>
@@ -336,7 +336,7 @@ export default function AnalysisPage() {
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
             <div style={{ fontSize: '13px', color: '#718096', marginBottom: '8px' }}>
               Заходів у портфелі:{' '}
-              <strong style={{ color: '#0f4c81' }}>{project.measures.length}</strong>
+              <strong style={{ color: '#1d4ed8' }}>{project.measures.length}</strong>
             </div>
             <button
               className="btn btn-primary btn-lg"
@@ -356,7 +356,7 @@ export default function AnalysisPage() {
               }
             </button>
             {!canAnalyze && (
-              <div style={{ fontSize: '11px', color: '#e17055', marginTop: '4px' }}>
+              <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '4px' }}>
                 Роль менеджера — тільки перегляд
               </div>
             )}
@@ -647,7 +647,7 @@ export default function AnalysisPage() {
                       <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                       <YAxis />
                       <Tooltip formatter={v => [v + ' т', 'CO₂']} />
-                      <Bar dataKey="CO2" fill="#00b894" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="CO2" fill="#0ea674" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

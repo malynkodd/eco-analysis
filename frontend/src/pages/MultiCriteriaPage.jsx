@@ -18,7 +18,7 @@ const SAATY_SCALE = [
   { value: 9,   label: '9 — Абсолютно краще' },
 ]
 
-const COLORS = ['#0f4c81', '#00b894', '#6c5ce7', '#e17055', '#fdcb6e']
+const COLORS = ['#1d4ed8', '#0ea674', '#7c3aed', '#dc2626', '#d97706']
 
 const DEFAULT_CRITERIA = ['Вартість', 'Еко-ефект', 'Окупність', 'Соц. вплив']
 const DEFAULT_ALTERNATIVES = [
@@ -232,7 +232,7 @@ export default function MultiCriteriaPage() {
 
       {/* Заголовок */}
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#0f4c81' }}>
+        <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#1d4ed8' }}>
           🎯 Багатокритеріальний аналіз
         </h1>
         <p style={{ color: '#718096', marginTop: '4px' }}>
@@ -252,7 +252,7 @@ export default function MultiCriteriaPage() {
         </button>
         <button
           className="btn"
-          style={{ background: '#6c5ce7', color: 'white' }}
+          style={{ background: '#7c3aed', color: 'white' }}
           onClick={runCombined}
           disabled={loading}
         >
@@ -303,10 +303,10 @@ export default function MultiCriteriaPage() {
               {criteria.map((c, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center', gap: '8px',
-                  background: '#f0f4f8', borderRadius: '10px',
+                  background: '#f6f8fb', borderRadius: '10px',
                   padding: '8px 14px', border: '1px solid #e2e8f0',
                 }}>
-                  <span style={{ fontWeight: 600, color: '#0f4c81' }}>{c}</span>
+                  <span style={{ fontWeight: 600, color: '#1d4ed8' }}>{c}</span>
 
                   {/* Перемикач вигідний / невигідний */}
                   <div style={{
@@ -323,7 +323,7 @@ export default function MultiCriteriaPage() {
                       style={{
                         padding: '3px 10px', fontSize: '11px', fontWeight: 600,
                         border: 'none', cursor: 'pointer',
-                        background: isBenefit[i] ? '#00b894' : '#f3f4f6',
+                        background: isBenefit[i] ? '#0ea674' : '#f3f4f6',
                         color:      isBenefit[i] ? 'white'   : '#9ca3af',
                         transition: 'all 0.15s',
                       }}
@@ -338,7 +338,7 @@ export default function MultiCriteriaPage() {
                       style={{
                         padding: '3px 10px', fontSize: '11px', fontWeight: 600,
                         border: 'none', cursor: 'pointer',
-                        background: !isBenefit[i] ? '#e17055' : '#f3f4f6',
+                        background: !isBenefit[i] ? '#dc2626' : '#f3f4f6',
                         color:      !isBenefit[i] ? 'white'   : '#9ca3af',
                         transition: 'all 0.15s',
                       }}
@@ -352,7 +352,7 @@ export default function MultiCriteriaPage() {
                       title={`Видалити критерій ${c}`}
                       style={{
                         background: 'none', border: 'none',
-                        color: '#e17055', cursor: 'pointer',
+                        color: '#dc2626', cursor: 'pointer',
                         fontSize: '14px', padding: '0', lineHeight: 1,
                       }}
                     >✕</button>
@@ -380,9 +380,9 @@ export default function MultiCriteriaPage() {
               background: '#f7fafd', padding: '10px 14px', borderRadius: '8px',
             }}>
               💡{' '}
-              <span style={{ color: '#00b894', fontWeight: 600 }}>↑ вигідний</span>
+              <span style={{ color: '#0ea674', fontWeight: 600 }}>↑ вигідний</span>
               {' '}= більше значення краще (NPV, еко-ефект).{' '}
-              <span style={{ color: '#e17055', fontWeight: 600 }}>↓ невигідний</span>
+              <span style={{ color: '#dc2626', fontWeight: 600 }}>↓ невигідний</span>
               {' '}= менше значення краще (вартість, термін окупності).
             </div>
           </div>
@@ -405,7 +405,7 @@ export default function MultiCriteriaPage() {
                   {alternatives.map((alt, i) => (
                     <tr key={i}>
                       <td>
-                        <strong style={{ color: '#0f4c81' }}>{alt.name}</strong>
+                        <strong style={{ color: '#1d4ed8' }}>{alt.name}</strong>
                       </td>
                       {criteria.map(c => (
                         <td key={c}>
@@ -482,13 +482,13 @@ export default function MultiCriteriaPage() {
               <tbody>
                 {criteria.map((rowC, i) => (
                   <tr key={i}>
-                    <td><strong style={{ color: '#0f4c81' }}>{rowC}</strong></td>
+                    <td><strong style={{ color: '#1d4ed8' }}>{rowC}</strong></td>
                     {criteria.map((colC, j) => (
                       <td key={j} style={{ padding: '6px 8px' }}>
                         {i === j ? (
                           <div style={{
                             width: '80px', textAlign: 'center',
-                            background: '#f0f4f8', padding: '6px',
+                            background: '#f6f8fb', padding: '6px',
                             borderRadius: '6px', color: '#718096', fontWeight: 600,
                           }}>1</div>
                         ) : i < j ? (
@@ -504,7 +504,7 @@ export default function MultiCriteriaPage() {
                         ) : (
                           <div style={{
                             width: '80px', textAlign: 'center',
-                            background: '#f0f4f8', padding: '6px',
+                            background: '#f6f8fb', padding: '6px',
                             borderRadius: '6px', color: '#718096', fontSize: '12px',
                           }}>
                             {(1 / matrix[j][i]).toFixed(3)}
@@ -565,12 +565,12 @@ export default function MultiCriteriaPage() {
                     marginBottom: '4px', fontSize: '13px',
                   }}>
                     <span style={{ fontWeight: 500 }}>{c}</span>
-                    <strong style={{ color: '#0f4c81' }}>
+                    <strong style={{ color: '#1d4ed8' }}>
                       {(ahpResult.weights[i] * 100).toFixed(1)}%
                     </strong>
                   </div>
                   <div style={{
-                    height: '8px', background: '#f0f4f8',
+                    height: '8px', background: '#f6f8fb',
                     borderRadius: '4px', overflow: 'hidden',
                   }}>
                     <div style={{
@@ -678,7 +678,7 @@ export default function MultiCriteriaPage() {
                       fontSize: '12px', color: '#718096', marginBottom: '3px',
                     }}>
                       <span>Коефіцієнт близькості</span>
-                      <strong style={{ color: '#0f4c81' }}>
+                      <strong style={{ color: '#1d4ed8' }}>
                         {r.closeness_coefficient.toFixed(4)}
                       </strong>
                     </div>
@@ -761,7 +761,7 @@ export default function MultiCriteriaPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{
                             width: '60px', height: '6px',
-                            background: '#f0f4f8', borderRadius: '3px', overflow: 'hidden',
+                            background: '#f6f8fb', borderRadius: '3px', overflow: 'hidden',
                           }}>
                             <div style={{
                               height: '100%',
@@ -854,7 +854,7 @@ export default function MultiCriteriaPage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
               {combinedResult.ahp.criteria.map((c, i) => (
                 <div key={i} style={{
-                  background: '#f0f4f8', borderRadius: '10px',
+                  background: '#f6f8fb', borderRadius: '10px',
                   padding: '12px 16px', minWidth: '120px', textAlign: 'center',
                   borderLeft: `4px solid ${COLORS[i % COLORS.length]}`,
                 }}>

@@ -53,6 +53,25 @@ class ProjectCreate(BaseModel):
     description: Optional[str] = Field(default=None, max_length=10_000)
 
 
+class ProjectUpdate(BaseModel):
+    """Partial update of a project's mutable fields."""
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=10_000)
+
+
+class MeasureUpdate(BaseModel):
+    """Partial update of a measure's parameters."""
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    measure_type: Optional[MeasureType] = None
+    initial_investment: Optional[float] = Field(default=None, ge=0)
+    operational_cost: Optional[float] = Field(default=None, ge=0)
+    expected_savings: Optional[float] = Field(default=None, ge=0)
+    lifetime_years: Optional[int] = Field(default=None, ge=1, le=100)
+    emission_reduction: Optional[float] = Field(default=None, ge=0)
+
+
 class ProjectResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
