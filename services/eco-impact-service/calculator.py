@@ -25,18 +25,18 @@ GWP_CO2 = 1.0
 # Коефіцієнти представлено в грн/т для уніфікації; курс EUR=42 UAH (станом 2024).
 REGULATORY_DAMAGE_COEFF_UAH_PER_TON = {
     "UA": {
-        PollutantCategory.co2: 875.0,        # грн/т CO2 — постановна оцінка
-        PollutantCategory.nox: 18900.0,      # грн/т NOx
-        PollutantCategory.sox: 24090.0,      # грн/т SOx
-        PollutantCategory.pm: 28560.0,       # грн/т PM (тверді частинки)
-        PollutantCategory.voc: 12180.0,      # грн/т ЛОС
+        PollutantCategory.co2: 875.0,  # грн/т CO2 — постановна оцінка
+        PollutantCategory.nox: 18900.0,  # грн/т NOx
+        PollutantCategory.sox: 24090.0,  # грн/т SOx
+        PollutantCategory.pm: 28560.0,  # грн/т PM (тверді частинки)
+        PollutantCategory.voc: 12180.0,  # грн/т ЛОС
     },
     "EU": {
-        PollutantCategory.co2: 4200.0,       # ≈100 EUR/т (CE Delft 2018)
-        PollutantCategory.nox: 504000.0,     # ≈12000 EUR/т
-        PollutantCategory.sox: 462000.0,     # ≈11000 EUR/т
-        PollutantCategory.pm: 1680000.0,     # ≈40000 EUR/т (PM2.5 health cost)
-        PollutantCategory.voc: 84000.0,      # ≈2000 EUR/т
+        PollutantCategory.co2: 4200.0,  # ≈100 EUR/т (CE Delft 2018)
+        PollutantCategory.nox: 504000.0,  # ≈12000 EUR/т
+        PollutantCategory.sox: 462000.0,  # ≈11000 EUR/т
+        PollutantCategory.pm: 1680000.0,  # ≈40000 EUR/т (PM2.5 health cost)
+        PollutantCategory.voc: 84000.0,  # ≈2000 EUR/т
     },
 }
 
@@ -149,11 +149,7 @@ def calculate_eco_impact(data: EcoInput) -> EcoResult:
     # Cost per tonne CO2 reduction за весь життєвий цикл проєкту:
     #   total_project_cost / (annual_CO2_reduction × lifespan)
     cost_per_tonne: Optional[float] = None
-    if (
-        data.initial_investment > 0
-        and data.lifespan_years > 0
-        and co2_reduction_tons > 0
-    ):
+    if data.initial_investment > 0 and data.lifespan_years > 0 and co2_reduction_tons > 0:
         denom = co2_reduction_tons * data.lifespan_years
         cost_per_tonne = round(data.initial_investment / denom, 2)
 

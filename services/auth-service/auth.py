@@ -42,9 +42,7 @@ JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
 _BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))
 if _BCRYPT_ROUNDS < 10:
     raise RuntimeError("BCRYPT_ROUNDS must be >= 10 for production-grade hashing")
-pwd_context = CryptContext(
-    schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=_BCRYPT_ROUNDS
-)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=_BCRYPT_ROUNDS)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
