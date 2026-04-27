@@ -19,7 +19,7 @@ export default class ErrorBoundary extends Component {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#f0f4f8',
+          background: '#f6f8fb',
         }}>
           <div style={{
             background: 'white',
@@ -30,7 +30,7 @@ export default class ErrorBoundary extends Component {
             textAlign: 'center',
           }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
-            <h2 style={{ color: '#0f4c81', marginBottom: '12px' }}>
+            <h2 style={{ color: '#1d4ed8', marginBottom: '12px' }}>
               Щось пішло не так
             </h2>
             <p style={{ color: '#718096', marginBottom: '24px', fontSize: '14px' }}>

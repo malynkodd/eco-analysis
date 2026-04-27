@@ -171,7 +171,7 @@ export default function ProjectPage() {
         alignItems: 'flex-start', marginBottom: '24px',
       }}>
         <div>
-          <h1 style={{ color: '#0f4c81', fontSize: '24px', fontWeight: 700 }}>
+          <h1 style={{ color: '#1d4ed8', fontSize: '24px', fontWeight: 700 }}>
             📁 {project.name}
           </h1>
           {project.description && (

@@ -62,7 +62,7 @@ export default function RegisterPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #f0f4f8 0%, #e8f0fe 100%)',
+      background: 'linear-gradient(135deg, #f6f8fb 0%, #eff6ff 100%)',
       padding: '20px',
     }}>
       <div style={{ width: '100%', maxWidth: '440px' }}>
@@ -70,14 +70,14 @@ export default function RegisterPage() {
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
             width: '64px', height: '64px',
-            background: 'linear-gradient(135deg, #0f4c81, #1a6baf)',
+            background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
             borderRadius: '20px',
             display: 'flex', alignItems: 'center',
             justifyContent: 'center', fontSize: '28px',
             margin: '0 auto 16px',
             boxShadow: '0 8px 24px rgba(15,76,129,0.3)',
           }}>📝</div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f4c81' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1d4ed8' }}>
             Реєстрація
           </h1>
           <p style={{ color: '#718096', fontSize: '14px', marginTop: '6px' }}>
@@ -103,10 +103,10 @@ export default function RegisterPage() {
                 placeholder="your@email.com"
                 value={form.email}
                 onChange={handleChange}
-                style={errors.email ? { borderColor: '#e17055' } : {}}
+                style={errors.email ? { borderColor: '#dc2626' } : {}}
               />
               {errors.email && (
-                <div style={{ color: '#e17055', fontSize: '12px', marginTop: '4px' }}>
+                <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
                   ⚠ {errors.email}
                 </div>
               )}
@@ -121,10 +121,10 @@ export default function RegisterPage() {
                 placeholder="Мінімум 3 символи"
                 value={form.username}
                 onChange={handleChange}
-                style={errors.username ? { borderColor: '#e17055' } : {}}
+                style={errors.username ? { borderColor: '#dc2626' } : {}}
               />
               {errors.username && (
-                <div style={{ color: '#e17055', fontSize: '12px', marginTop: '4px' }}>
+                <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
                   ⚠ {errors.username}
                 </div>
               )}
@@ -139,10 +139,10 @@ export default function RegisterPage() {
                 placeholder="Мінімум 8 символів"
                 value={form.password}
                 onChange={handleChange}
-                style={errors.password ? { borderColor: '#e17055' } : {}}
+                style={errors.password ? { borderColor: '#dc2626' } : {}}
               />
               {errors.password && (
-                <div style={{ color: '#e17055', fontSize: '12px', marginTop: '4px' }}>
+                <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
                   ⚠ {errors.password}
                 </div>
               )}
@@ -153,7 +153,7 @@ export default function RegisterPage() {
               <label>Роль</label>
               <div style={{
                 padding: '10px 14px',
-                background: '#f0f4f8',
+                background: '#f6f8fb',
                 borderRadius: '8px',
                 border: '1px solid #e2e8f0',
                 fontSize: '14px',
@@ -195,7 +195,7 @@ export default function RegisterPage() {
             color: '#718096',
           }}>
             Вже є акаунт?{' '}
-            <Link to="/login" style={{ color: '#0f4c81', fontWeight: 600 }}>
+            <Link to="/login" style={{ color: '#1d4ed8', fontWeight: 600 }}>
               Увійти
             </Link>
           </div>

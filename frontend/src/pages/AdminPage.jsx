@@ -4,7 +4,7 @@ import { adminAPI } from '../api'
 import { Navigate } from 'react-router-dom'
 
 const ROLE_LABELS = {
-  analyst: { label: 'Аналітик', color: '#0f4c81', bg: '#e8f0fe' },
+  analyst: { label: 'Аналітик', color: '#1d4ed8', bg: '#eff6ff' },
   manager: { label: 'Менеджер', color: '#276749', bg: '#e6ffed' },
   admin:   { label: 'Адмін',    color: '#744210', bg: '#fefcbf' },
 }
@@ -52,7 +52,7 @@ export default function AdminPage() {
   return (
     <div style={{
       minHeight: 'calc(100vh - 64px)',
-      background: 'linear-gradient(135deg, #f0f4f8 0%, #e8f0fe 100%)',
+      background: 'linear-gradient(135deg, #f6f8fb 0%, #eff6ff 100%)',
       padding: '32px 24px',
     }}>
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
@@ -106,7 +106,7 @@ export default function AdminPage() {
             </h2>
             {!loading && (
               <span style={{
-                background: '#e8f0fe', color: '#0f4c81',
+                background: '#eff6ff', color: '#1d4ed8',
                 padding: '4px 12px', borderRadius: '20px',
                 fontSize: '13px', fontWeight: 600,
               }}>
@@ -148,7 +148,7 @@ export default function AdminPage() {
                   const isCurrentUser = u.id === user.id
                   return (
                     <tr key={u.id} style={{
-                      borderBottom: idx < users.length - 1 ? '1px solid #f0f4f8' : 'none',
+                      borderBottom: idx < users.length - 1 ? '1px solid #f6f8fb' : 'none',
                       background: isCurrentUser ? '#fffbeb' : 'white',
                       transition: 'background 0.15s',
                     }}>
@@ -159,7 +159,7 @@ export default function AdminPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <div style={{
                             width: '32px', height: '32px',
-                            background: 'linear-gradient(135deg, #0f4c81, #1a6baf)',
+                            background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
                             borderRadius: '50%',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             color: 'white', fontWeight: 700, fontSize: '13px',

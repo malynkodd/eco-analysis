@@ -228,7 +228,7 @@ export default function DashboardPage() {
         }}>📁</div>
 
         <h3 style={{
-          fontSize: '15px', fontWeight: 600, color: '#0f4c81',
+          fontSize: '15px', fontWeight: 600, color: '#1d4ed8',
           marginBottom: '6px',
           paddingRight: (isAnalyst || user?.role === 'admin') ? '80px' : '8px',
         }}>
@@ -285,7 +285,7 @@ export default function DashboardPage() {
         {/* Нижня частина */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          paddingTop: '12px', borderTop: '1px solid #f0f4f8',
+          paddingTop: '12px', borderTop: '1px solid #f6f8fb',
         }}>
           <span className="badge badge-blue">
             {p.measures?.length || 0} заходів
@@ -304,7 +304,7 @@ export default function DashboardPage() {
           <div
             style={{
               display: 'flex', gap: '8px', marginTop: '12px',
-              paddingTop: '10px', borderTop: '1px solid #f0f4f8',
+              paddingTop: '10px', borderTop: '1px solid #f6f8fb',
             }}
             onClick={e => e.stopPropagation()}
           >
@@ -350,7 +350,7 @@ export default function DashboardPage() {
         alignItems: 'center', marginBottom: '28px',
       }}>
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#0f4c81' }}>
+          <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#1d4ed8' }}>
             {canManage ? 'Усі проєкти аналітиків' : 'Мої проєкти'}
           </h1>
           <p style={{ color: '#718096', marginTop: '4px' }}>
@@ -510,7 +510,7 @@ export default function DashboardPage() {
             }}>
               <div style={{
                 width: '32px', height: '32px',
-                background: 'linear-gradient(135deg, #0f4c81, #1a6baf)',
+                background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
                 borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'white', fontWeight: 700, fontSize: '14px',
@@ -518,7 +518,7 @@ export default function DashboardPage() {
                 {owner[0].toUpperCase()}
               </div>
               <div>
-                <div style={{ fontWeight: 600, color: '#0f4c81', fontSize: '15px' }}>
+                <div style={{ fontWeight: 600, color: '#1d4ed8', fontSize: '15px' }}>
                   👤 {owner}
                 </div>
                 <div style={{ fontSize: '12px', color: '#718096' }}>

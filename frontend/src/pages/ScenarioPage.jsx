@@ -141,7 +141,7 @@ export default function ScenarioPage() {
     <div className="container" style={{ paddingTop: '32px', paddingBottom: '40px' }}>
 
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#0f4c81' }}>
+        <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#1d4ed8' }}>
           🔬 Сценарне моделювання
         </h1>
         <p style={{ color: '#718096', marginTop: '4px' }}>
@@ -243,7 +243,7 @@ export default function ScenarioPage() {
               <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: 600 }}>
                 БАЗОВИЙ NPV (орієнтовно)
               </div>
-              <div style={{ fontSize: '20px', fontWeight: 700, color: '#0f4c81' }}>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#1d4ed8' }}>
                 {(() => {
                   const cf = base.expected_savings - base.operational_cost
                   const npv = -base.initial_investment +
@@ -354,7 +354,7 @@ export default function ScenarioPage() {
                   onChange={e => setVariation(parseInt(e.target.value))}
                   style={{ width: '100px', marginBottom: 0 }}
                 />
-                <strong style={{ color: '#0f4c81' }}>±{variation}%</strong>
+                <strong style={{ color: '#1d4ed8' }}>±{variation}%</strong>
               </div>
               <button
                 className="btn btn-primary"
@@ -378,20 +378,20 @@ export default function ScenarioPage() {
               }}>
                 <div>
                   <div style={{ fontSize: '12px', color: '#718096' }}>Базовий NPV</div>
-                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#0f4c81' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#1d4ed8' }}>
                     {Math.round(sensitivityResult.base_npv).toLocaleString()} ₴
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '12px', color: '#718096' }}>Найвпливовіший фактор</div>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#6c5ce7' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#7c3aed' }}>
                     {PARAM_LABELS[sensitivityResult.results[0]?.parameter] || sensitivityResult.results[0]?.parameter}
                   </div>
                 </div>
               </div>
 
               {/* Tornado Chart */}
-              <h4 style={{ color: '#0f4c81', marginBottom: '16px', fontSize: '14px' }}>
+              <h4 style={{ color: '#1d4ed8', marginBottom: '16px', fontSize: '14px' }}>
                 Tornado Chart — вплив на NPV (грн)
               </h4>
               <ResponsiveContainer width="100%" height={280}>
@@ -411,7 +411,7 @@ export default function ScenarioPage() {
                     {sensitivityResult.results.map((_, i) => (
                       <Cell
                         key={i}
-                        fill={['#0f4c81','#1a6baf','#6c5ce7','#00b894','#e17055'][i % 5]}
+                        fill={['#1d4ed8','#3b82f6','#7c3aed','#0ea674','#dc2626'][i % 5]}
                       />
                     ))}
                   </Bar>

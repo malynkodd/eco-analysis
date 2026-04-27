@@ -35,7 +35,7 @@ export default function LoginPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #f0f4f8 0%, #e8f0fe 100%)',
+      background: 'linear-gradient(135deg, #f6f8fb 0%, #eff6ff 100%)',
       padding: '20px',
     }}>
       <div style={{ width: '100%', maxWidth: '420px' }}>
@@ -44,7 +44,7 @@ export default function LoginPage() {
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
             width: '64px', height: '64px',
-            background: 'linear-gradient(135deg, #0f4c81, #1a6baf)',
+            background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
             borderRadius: '20px',
             display: 'flex',
             alignItems: 'center',
@@ -53,7 +53,7 @@ export default function LoginPage() {
             margin: '0 auto 16px',
             boxShadow: '0 8px 24px rgba(15,76,129,0.3)',
           }}>🌿</div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f4c81' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1d4ed8' }}>
             Вхід в систему
           </h1>
           <p style={{ color: '#718096', fontSize: '14px', marginTop: '6px' }}>
@@ -117,7 +117,7 @@ export default function LoginPage() {
             color: '#718096',
           }}>
             Немає акаунту?{' '}
-            <Link to="/register" style={{ color: '#0f4c81', fontWeight: 600 }}>
+            <Link to="/register" style={{ color: '#1d4ed8', fontWeight: 600 }}>
               Зареєструватись
             </Link>
           </div>
