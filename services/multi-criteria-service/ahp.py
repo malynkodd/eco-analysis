@@ -48,7 +48,10 @@ def _validate_saaty_matrix(matrix: np.ndarray) -> None:
             )
         for j in range(i + 1, n):
             if matrix[i, j] <= 0 or matrix[j, i] <= 0:
-                raise AHPValidationError(f"Comparison [{i},{j}] and reciprocal must be positive")
+                raise AHPValidationError(
+                    f"Comparison [{i},{j}] must be a positive Saaty value (1–9 or its reciprocal); "
+                    f"got {matrix[i, j]:.4f}. Ensure no cell is 0."
+                )
             if not _within_saaty_scale(matrix[i, j]):
                 raise AHPValidationError(
                     f"Value at [{i},{j}]={matrix[i, j]:.4f} not on Saaty 1–9 scale"

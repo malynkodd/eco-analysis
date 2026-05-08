@@ -29,8 +29,8 @@ const DEFAULT_ALTERNATIVES = [
 ]
 
 function buildIdentityMatrix(n) {
-  return Array.from({ length: n }, (_, i) =>
-    Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))
+  return Array.from({ length: n }, () =>
+    Array.from({ length: n }, () => 1)
   )
 }
 
