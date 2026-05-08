@@ -282,7 +282,7 @@ export default function ProjectPage() {
               <div className="form-group">
                 <label>Очікувана економія/рік (грн) *</label>
                 <input
-                  type="number" min="1" step="1000"
+                  type="number" min="1" step="any"
                   placeholder="80 000"
                   value={form.expected_savings}
                   onChange={e => setForm({ ...form, expected_savings: e.target.value })}
