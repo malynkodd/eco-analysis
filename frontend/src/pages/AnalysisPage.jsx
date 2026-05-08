@@ -191,6 +191,8 @@ export default function AnalysisPage() {
       ranking: results.topsis.ranking.map(r => ({
         name: r.name,
         closeness_coefficient: r.closeness_coefficient,
+        distance_to_ideal: r.distance_to_ideal,
+        distance_to_anti_ideal: r.distance_to_anti_ideal,
         rank: r.rank,
       })),
     }
