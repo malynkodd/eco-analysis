@@ -4,10 +4,16 @@ import { projectAPI } from '../api'
 import { useAuth } from '../context/AuthContext'
 
 const TYPE_LABELS = {
-  insulation: { icon: '🏠', label: 'Утеплення', color: '#dbeafe' },
-  equipment:  { icon: '⚙️', label: 'Обладнання', color: '#fce7f3' },
-  treatment:  { icon: '🌊', label: 'Очисні', color: '#d1fae5' },
-  renewable:  { icon: '☀️', label: 'ВДЕ', color: '#fef3c7' },
+  insulation:           { icon: '🏠', label: 'Утеплення',             color: '#dbeafe' },
+  equipment:            { icon: '⚙️', label: 'Обладнання',            color: '#fce7f3' },
+  treatment:            { icon: '🌊', label: 'Очисні',                color: '#d1fae5' },
+  renewable:            { icon: '☀️', label: 'ВДЕ',                   color: '#fef3c7' },
+  led_lighting:         { icon: '💡', label: 'LED освітлення',        color: '#fef9c3' },
+  heat_recovery:        { icon: '♻️', label: 'Рекуперація тепла',     color: '#dcfce7' },
+  boiler_modernization: { icon: '🔥', label: 'Модернізація котельні', color: '#ffedd5' },
+  energy_monitoring:    { icon: '📊', label: 'Енергомоніторинг',      color: '#e0e7ff' },
+  ev_electrification:   { icon: '🚗', label: 'Електрифікація',        color: '#f0fdf4' },
+  wastewater_reuse:     { icon: '💧', label: 'Стічні води',           color: '#e0f2fe' },
 }
 
 const STATUS_CONFIG = {

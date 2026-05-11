@@ -50,6 +50,12 @@ class MeasureType(str, enum.Enum):
     equipment = "equipment"
     treatment = "treatment"
     renewable = "renewable"
+    led_lighting = "led_lighting"
+    heat_recovery = "heat_recovery"
+    boiler_modernization = "boiler_modernization"
+    energy_monitoring = "energy_monitoring"
+    ev_electrification = "ev_electrification"
+    wastewater_reuse = "wastewater_reuse"
 
 
 # ─── Identity ────────────────────────────────────────────────────────────────

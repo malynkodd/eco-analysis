@@ -3,11 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { projectAPI } from '../api'
 
 const MEASURE_TYPES = [
-  { value: 'insulation', label: '🏠 Утеплення' },
-  { value: 'equipment',  label: '⚙️ Заміна обладнання' },
-  { value: 'treatment',  label: '🌊 Очисні споруди' },
-  { value: 'renewable',  label: '☀️ Відновлювана енергетика' },
-]
+  { value: 'insulation',          label: '🏠 Утеплення' },
+  { value: 'equipment',           label: '⚙️ Заміна обладнання' },
+  { value: 'treatment',           label: '🌊 Очисні споруди' },
+  { value: 'renewable',           label: '☀️ Відновлювана енергетика' },
+  { value: 'led_lighting',        label: '💡 LED освітлення' },
+  { value: 'heat_recovery',       label: '♻️ Рекуперація тепла' },
+  { value: 'boiler_modernization',label: '🔥 Модернізація котельні' },
+  { value: 'energy_monitoring',   label: '📊 Енергомоніторинг (BMS)' },
+  { value: 'ev_electrification',  label: '🚗 Електрифікація транспорту' },
+  { value: 'wastewater_reuse',    label: '💧 Повторне використання стічних вод' },
+].sort((a, b) => a.label.replace(/^\S+\s/, '').localeCompare(b.label.replace(/^\S+\s/, ''), 'uk'))
 
 // Шаблони типових значень для кожного типу заходу
 const TEMPLATES = {
@@ -43,6 +49,54 @@ const TEMPLATES = {
     lifetime_years: '25',
     emission_reduction: '80',
   },
+  led_lighting: {
+    name: 'Заміна освітлення на LED',
+    initial_investment: '180000',
+    operational_cost: '8000',
+    expected_savings: '72000',
+    lifetime_years: '10',
+    emission_reduction: '18.5',
+  },
+  heat_recovery: {
+    name: 'Система рекуперації тепла',
+    initial_investment: '420000',
+    operational_cost: '15000',
+    expected_savings: '140000',
+    lifetime_years: '15',
+    emission_reduction: '42',
+  },
+  boiler_modernization: {
+    name: 'Модернізація котельного обладнання',
+    initial_investment: '850000',
+    operational_cost: '35000',
+    expected_savings: '260000',
+    lifetime_years: '20',
+    emission_reduction: '95',
+  },
+  energy_monitoring: {
+    name: 'Система енергомоніторингу BMS',
+    initial_investment: '220000',
+    operational_cost: '12000',
+    expected_savings: '88000',
+    lifetime_years: '10',
+    emission_reduction: '22',
+  },
+  ev_electrification: {
+    name: 'Електрифікація автопарку',
+    initial_investment: '2400000',
+    operational_cost: '90000',
+    expected_savings: '480000',
+    lifetime_years: '8',
+    emission_reduction: '110',
+  },
+  wastewater_reuse: {
+    name: 'Система повторного використання стічних вод',
+    initial_investment: '680000',
+    operational_cost: '28000',
+    expected_savings: '195000',
+    lifetime_years: '20',
+    emission_reduction: '31',
+  },
 }
 
 const emptyForm = {
@@ -65,6 +119,7 @@ export default function ProjectPage() {
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [error, setError]       = useState('')
+  const [templateFilter, setTemplateFilter] = useState('')
 
   useEffect(() => { loadProject() }, [id])
 
@@ -240,18 +295,31 @@ export default function ProjectPage() {
               <div style={{ fontSize: '11px', color: '#718096', textTransform: 'uppercase', fontWeight: 600, marginBottom: '8px' }}>
                 Шаблони типових значень:
               </div>
+              <input
+                type="text"
+                placeholder="Фільтр шаблонів..."
+                value={templateFilter}
+                onChange={e => setTemplateFilter(e.target.value)}
+                style={{
+                  width: '220px', padding: '4px 10px', fontSize: '13px',
+                  border: '1px solid #d1d5db', borderRadius: '6px',
+                  marginBottom: '8px', outline: 'none',
+                }}
+              />
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {MEASURE_TYPES.map(t => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => applyTemplate(t.value)}
-                    title={`Заповнити типовими значеннями для: ${t.label}`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+                {MEASURE_TYPES
+                  .filter(t => t.label.toLowerCase().includes(templateFilter.toLowerCase()))
+                  .map(t => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => applyTemplate(t.value)}
+                      title={`Заповнити типовими значеннями для: ${t.label}`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
               </div>
               <div style={{ fontSize: '11px', color: '#a0aec0', marginTop: '6px' }}>
                 💡 Натисніть шаблон, щоб заповнити типові значення для цього типу заходу
