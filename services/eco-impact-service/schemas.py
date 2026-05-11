@@ -21,6 +21,12 @@ class MeasureType(str, Enum):
     renewable_energy = "renewable_energy"
     process_optimisation = "process_optimisation"
     transport = "transport"
+    led_lighting = "led_lighting"
+    heat_recovery = "heat_recovery"
+    boiler_modernization = "boiler_modernization"
+    energy_monitoring = "energy_monitoring"
+    ev_electrification = "ev_electrification"
+    wastewater_reuse = "wastewater_reuse"
 
 
 class PollutantCategory(str, Enum):
