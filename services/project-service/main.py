@@ -81,10 +81,18 @@ def create_project(
 ):
     if current_user["role"] == "manager":
         raise HTTPException(status_code=403, detail="Managers cannot create projects")
+    owner_id = _require_user_id(current_user)
+    existing = (
+        db.query(models.Project)
+        .filter(models.Project.owner_id == owner_id, models.Project.name == project_data.name)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Проєкт з такою назвою вже існує")
     project = models.Project(
         name=project_data.name,
         description=project_data.description,
-        owner_id=_require_user_id(current_user),
+        owner_id=owner_id,
         status=models.ProjectStatus.pending,
     )
     db.add(project)
@@ -154,6 +162,18 @@ def update_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     payload = update_data.model_dump(exclude_unset=True)
+    if "name" in payload and payload["name"] != project.name:
+        clash = (
+            db.query(models.Project)
+            .filter(
+                models.Project.owner_id == project.owner_id,
+                models.Project.name == payload["name"],
+                models.Project.id != project.id,
+            )
+            .first()
+        )
+        if clash:
+            raise HTTPException(status_code=409, detail="Проєкт з такою назвою вже існує")
     for field, value in payload.items():
         setattr(project, field, value)
     db.commit()

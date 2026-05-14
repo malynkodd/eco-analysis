@@ -127,13 +127,20 @@ export default function DashboardPage() {
   const handleCreate = async (e) => {
     e.preventDefault()
     if (!form.name.trim()) return
+    const duplicate = projects.some(
+      p => p.name.trim().toLowerCase() === form.name.trim().toLowerCase()
+    )
+    if (duplicate) {
+      setError('Проєкт з такою назвою вже існує')
+      return
+    }
     try {
       const res = await projectAPI.create(form)
       setForm({ name: '', description: '' })
       setShowForm(false)
       navigate(`/projects/${res.data.id}`)
-    } catch {
-      setError('Помилка створення проєкту')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Помилка створення проєкту')
     }
   }
 
