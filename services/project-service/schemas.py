@@ -20,6 +20,7 @@ class MeasureType(str, Enum):
     energy_monitoring = "energy_monitoring"
     ev_electrification = "ev_electrification"
     wastewater_reuse = "wastewater_reuse"
+    custom = "custom"
 
 
 # ─── Measure ─────────────────────────────────────────────────────────────────

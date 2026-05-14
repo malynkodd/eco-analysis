@@ -14,6 +14,7 @@ const MEASURE_TYPES = [
   { value: 'ev_electrification',  label: '🚗 Електрифікація транспорту' },
   { value: 'wastewater_reuse',    label: '💧 Повторне використання стічних вод' },
 ].sort((a, b) => a.label.replace(/^\S+\s/, '').localeCompare(b.label.replace(/^\S+\s/, ''), 'uk'))
+  .concat([{ value: 'custom', label: '✏️ Інший (власний тип)' }])
 
 // Шаблони типових значень для кожного типу заходу
 const TEMPLATES = {
@@ -102,6 +103,7 @@ const TEMPLATES = {
 const emptyForm = {
   name: '',
   measure_type: 'insulation',
+  custom_type_name: '',
   initial_investment: '',
   operational_cost: '',
   expected_savings: '',
@@ -136,11 +138,11 @@ export default function ProjectPage() {
 
   const applyTemplate = (type) => {
     const tmpl = TEMPLATES[type] || {}
-    setForm(prev => ({ ...prev, ...tmpl, measure_type: type }))
+    setForm(prev => ({ ...prev, ...tmpl, measure_type: type, custom_type_name: '' }))
   }
 
   const handleTypeChange = (type) => {
-    setForm(prev => ({ ...prev, measure_type: type }))
+    setForm(prev => ({ ...prev, measure_type: type, custom_type_name: '' }))
   }
 
   const handleAddMeasure = async (e) => {
@@ -153,16 +155,24 @@ export default function ProjectPage() {
     const lifetime = parseInt(form.lifetime_years)
     const emission = parseFloat(form.emission_reduction)
 
+    if (form.measure_type === 'custom' && !form.custom_type_name.trim()) {
+      setError('Введіть назву власного типу заходу'); return
+    }
     if (isNaN(investment) || investment < 0) { setError('Введіть коректні початкові інвестиції'); return }
     if (isNaN(opCost)     || opCost < 0)     { setError('Введіть коректні операційні витрати'); return }
     if (isNaN(savings)    || savings <= 0)    { setError('Економія повинна бути більше 0'); return }
     if (isNaN(lifetime)   || lifetime < 1 || lifetime > 50) { setError('Термін: від 1 до 50 років'); return }
     if (isNaN(emission)   || emission < 0)    { setError('Зменшення викидів не може бути від\'ємним'); return }
 
+    // Resolve the measure name: for custom type, default to the custom type name if name is blank
+    const resolvedName = form.name.trim() || form.custom_type_name.trim()
+
     setSubmitting(true)
     try {
+      const { custom_type_name: _ignored, ...rest } = form
       await projectAPI.addMeasure(id, {
-        ...form,
+        ...rest,
+        name:               resolvedName,
         initial_investment: investment,
         operational_cost:   opCost,
         expected_savings:   savings,
@@ -287,6 +297,23 @@ export default function ProjectPage() {
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
+                {form.measure_type === 'custom' && (
+                  <input
+                    type="text"
+                    placeholder="Введіть назву типу заходу *"
+                    value={form.custom_type_name}
+                    onChange={e => {
+                      const val = e.target.value
+                      setForm(prev => ({
+                        ...prev,
+                        custom_type_name: val,
+                        name: prev.name || val,
+                      }))
+                    }}
+                    required
+                    style={{ marginTop: '6px' }}
+                  />
+                )}
               </div>
             </div>
 
@@ -308,7 +335,7 @@ export default function ProjectPage() {
               />
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {MEASURE_TYPES
-                  .filter(t => t.label.toLowerCase().includes(templateFilter.toLowerCase()))
+                  .filter(t => t.value !== 'custom' && t.label.toLowerCase().includes(templateFilter.toLowerCase()))
                   .map(t => (
                     <button
                       key={t.value}
@@ -437,7 +464,9 @@ export default function ProjectPage() {
                   <tr key={m.id}>
                     <td><strong>{m.name}</strong></td>
                     <td>
-                      {MEASURE_TYPES.find(t => t.value === m.measure_type)?.label || m.measure_type}
+                      {m.measure_type === 'custom'
+                        ? '✏️ Власний тип'
+                        : MEASURE_TYPES.find(t => t.value === m.measure_type)?.label || m.measure_type}
                     </td>
                     <td>{m.initial_investment.toLocaleString()} ₴</td>
                     <td>{m.operational_cost.toLocaleString()} ₴</td>

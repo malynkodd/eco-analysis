@@ -14,6 +14,7 @@ const TYPE_LABELS = {
   energy_monitoring:    { icon: '📊', label: 'Енергомоніторинг',      color: '#e0e7ff' },
   ev_electrification:   { icon: '🚗', label: 'Електрифікація',        color: '#f0fdf4' },
   wastewater_reuse:     { icon: '💧', label: 'Стічні води',           color: '#e0f2fe' },
+  custom:               { icon: '✏️', label: 'Власний тип',           color: '#f3f4f6' },
 }
 
 const STATUS_CONFIG = {
